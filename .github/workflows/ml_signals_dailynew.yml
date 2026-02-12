@@ -1,4 +1,4 @@
-name: ML Signals Daily Automation
+name: ML Signals Daily Automation New
 
 on:
   schedule:
