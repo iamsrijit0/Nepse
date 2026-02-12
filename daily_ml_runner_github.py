@@ -308,8 +308,19 @@ def generate_signal_ml(df_symbol, model_info=None):
         return 0, 0.0, {}
     
     pred_df = pd.DataFrame([latest_features])
-    X_pred = sm.add_constant(pred_df)[model.exog_names]
+    X_pred = sm.add_constant(pred_df)
+
+    required_cols = model.model.exog_names  # <-- THIS is correct
+    
+    for col in required_cols:
+        if col not in X_pred.columns:
+            X_pred[col] = 0
+    
+    X_pred = X_pred[required_cols]
+    
     prob = model.predict(X_pred)[0]
+
+  
     
     confidence = prob
     if model_info:
