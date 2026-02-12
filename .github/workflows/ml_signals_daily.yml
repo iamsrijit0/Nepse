@@ -1,0 +1,153 @@
+name: ML Signals Daily Automation
+
+on:
+  schedule:
+    # Run at 4:30 PM Nepal Time (11:00 UTC), Sun-Thu - 30 min after data update
+    - cron: '0 11 * * 0-4'
+  workflow_dispatch:  # Allow manual trigger
+  workflow_run:
+    workflows: ["NEPSE Daily Automation"]
+    types:
+      - completed
+
+jobs:
+  generate-ml-signals:
+    runs-on: ubuntu-latest
+    # Only run if the NEPSE data update was successful
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' || github.event.workflow_run.conclusion == 'success' }}
+    
+    env:
+      TZ: Asia/Kathmandu
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for model persistence
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-ml-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-ml-
+      
+      - name: Install ML dependencies
+        run: |
+          pip install --upgrade pip
+          pip install pandas numpy requests scikit-learn==1.3.2 gitpython
+      
+      - name: Check for latest data
+        id: check_data
+        run: |
+          LATEST_DATA=$(ls -t espen_*.csv 2>/dev/null | head -1)
+          if [ -z "$LATEST_DATA" ]; then
+            echo "❌ No ESPEN data file found!"
+            echo "has_data=false" >> $GITHUB_OUTPUT
+          else
+            echo "✅ Found data file: $LATEST_DATA"
+            echo "has_data=true" >> $GITHUB_OUTPUT
+            echo "data_file=$LATEST_DATA" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Run ML Signal Generator
+        if: steps.check_data.outputs.has_data == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          echo "🤖 Starting ML Signal Generator..."
+          echo "📅 Nepal Time: $(date)"
+          echo "📊 Using data: ${{ steps.check_data.outputs.data_file }}"
+          python daily_ml_runner_with_upload.py
+      
+      - name: Display Generated Signals
+        if: steps.check_data.outputs.has_data == 'true'
+        run: |
+          echo "📋 Checking for generated signals..."
+          LATEST_SIGNALS=$(ls -t signals_*.csv 2>/dev/null | head -1)
+          if [ -n "$LATEST_SIGNALS" ]; then
+            echo "✅ Signals file: $LATEST_SIGNALS"
+            echo "📊 Signal Summary:"
+            if command -v column &> /dev/null; then
+              head -10 "$LATEST_SIGNALS" | column -t -s,
+            else
+              head -10 "$LATEST_SIGNALS"
+            fi
+          else
+            echo "⏸️ No signals generated today"
+          fi
+      
+      - name: Commit ML results
+        if: steps.check_data.outputs.has_data == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          
+          # Add all ML-related files
+          git add -f signals_*.csv 2>/dev/null || true
+          git add -f adaptive_models.pkl 2>/dev/null || true
+          git add -f ML_ADAPTIVE_SIGNALS.csv 2>/dev/null || true
+          git add -f yesterday_signals.csv 2>/dev/null || true
+          
+          # Check if there are changes to commit
+          if git diff-index --quiet HEAD; then
+            echo "⏸️ No changes to commit"
+          else
+            DATE=$(date +'%Y-%m-%d %H:%M')
+            git commit -m "🤖 ML Signals: $DATE"
+            git remote set-url origin https://x-access-token:$GH_TOKEN@github.com/${{ github.repository }}
+            git push origin main
+            echo "✅ ML results committed and pushed"
+          fi
+      
+      - name: Cleanup old signal files
+        if: steps.check_data.outputs.has_data == 'true'
+        run: |
+          echo "🧹 Cleaning up old signal files..."
+          
+          # Keep only last 7 days of signal files
+          OLD_SIGNALS=$(git ls-files -- "signals_*.csv" | sort -r | awk 'NR>7')
+          if [ -n "$OLD_SIGNALS" ]; then
+            echo "Removing old signals:"
+            echo "$OLD_SIGNALS"
+            git rm -q $OLD_SIGNALS
+            git commit -m "🧹 Cleanup: Remove old signal files"
+            git push origin main
+            echo "✅ Cleanup complete"
+          else
+            echo "✅ No old files to clean up"
+          fi
+      
+      - name: Summary Report
+        if: always()
+        run: |
+          echo "======================================"
+          echo "🤖 ML SIGNALS AUTOMATION SUMMARY"
+          echo "======================================"
+          echo "📅 Date: $(date +'%Y-%m-%d %H:%M %Z')"
+          echo "✅ Workflow: ${{ job.status }}"
+          
+          if [ -f "adaptive_models.pkl" ]; then
+            echo "🧠 Models: ✅ Trained"
+            echo "📊 Model size: $(du -h adaptive_models.pkl | cut -f1)"
+          else
+            echo "🧠 Models: ⏳ First run (will be created)"
+          fi
+          
+          SIGNAL_COUNT=$(ls signals_*.csv 2>/dev/null | wc -l)
+          echo "📈 Signal files: $SIGNAL_COUNT"
+          
+          if [ -f "ML_ADAPTIVE_SIGNALS.csv" ]; then
+            TOTAL_TRADES=$(tail -n +2 ML_ADAPTIVE_SIGNALS.csv 2>/dev/null | wc -l)
+            echo "📊 Total historical trades: $TOTAL_TRADES"
+          fi
+          
+          echo "======================================"
