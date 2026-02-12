@@ -2,23 +2,21 @@ name: NEPSE Daily Automation
 
 on:
   schedule:
-    - cron: '15 10 * * 0-4'  # 4 PM Nepal Time (10:15 UTC), Sun-Thu
+    - cron: '15 10 * * 0-4'   # 4 PM Nepal Time (10:15 UTC), Sun-Thu
   workflow_dispatch:
 
 permissions:
-  contents: write   # 🔥 REQUIRED FOR PUSHING
+  contents: write   # 🔥 REQUIRED to push
 
 jobs:
   run-script:
     runs-on: ubuntu-latest
-    env:
-      TZ: Asia/Kathmandu
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # Required for proper commit history
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -27,20 +25,24 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install nepse-scraper pandas requests beautifulsoup4 numpy xlsxwriter joblib matplotlib
+          pip install nepse-scraper pandas numpy requests beautifulsoup4 xlsxwriter joblib matplotlib
 
       - name: Run automation script
         run: python nepse_autp.py
 
-      - name: Commit and push changes
+      - name: Commit changes
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add *.csv || true
-          git diff --cached --quiet || git commit -m "Auto-update: $(date +'%Y-%m-%d')"
+          git add *.csv 2>/dev/null || true
 
-          git push
+          if ! git diff --cached --quiet; then
+            git commit -m "Auto-update: $(date +'%Y-%m-%d')"
+            git push
+          else
+            echo "No changes to commit"
+          fi
 
       - name: Cleanup old files (keep latest 3)
         run: |
@@ -48,11 +50,15 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           for prefix in espen EMA_Cross_for; do
-            files=$(git ls-files "${prefix}*.csv" | sort -r | tail -n +4)
+            files=$(ls ${prefix}*.csv 2>/dev/null | sort -r | tail -n +4)
             if [ -n "$files" ]; then
               git rm -q $files
             fi
           done
 
-          git diff --cached --quiet || git commit -m "Auto-cleanup old files"
-          git push
+          if ! git diff --cached --quiet; then
+            git commit -m "Auto-cleanup old files"
+            git push
+          else
+            echo "No old files to clean"
+          fi
