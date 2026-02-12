@@ -22,7 +22,7 @@ warnings.filterwarnings('ignore')
 # ===========================
 # CONFIG
 # ===========================
-REPO_OWNER = "iamsrijit"
+REPO_OWNER = "iamsrijit0"
 REPO_NAME = "Nepse"
 BRANCH = "main"
 
