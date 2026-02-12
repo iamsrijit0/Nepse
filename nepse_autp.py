@@ -4,7 +4,7 @@ import os, requests
 import base64
 import nepse_scraper
 import xlsxwriter
-import git
+# import git
 import pandas as pd
 from nepse_scraper import Nepse_scraper
 import pandas as pd
