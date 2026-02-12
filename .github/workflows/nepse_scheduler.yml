@@ -2,9 +2,11 @@ name: NEPSE Daily Automation
 
 on:
   schedule:
-    # - cron: '30 14 * * *'  # Runs every day at 8:15 PM Nepal Time (14:30 UTC)
     - cron: '15 10 * * 0-4'  # 4 PM Nepal Time (10:15 UTC), Sun-Thu
   workflow_dispatch:
+
+permissions:
+  contents: write   # 🔥 REQUIRED FOR PUSHING
 
 jobs:
   run-script:
@@ -15,37 +17,42 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # Required for proper commit history
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: '3.11'
 
       - name: Install dependencies
         run: |
-          pip install nepse-scraper pandas requests beautifulsoup4 gitpython numpy xlsxwriter
+          pip install nepse-scraper pandas requests beautifulsoup4 numpy xlsxwriter joblib matplotlib
 
       - name: Run automation script
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: python nepse_autp.py
 
       - name: Commit and push changes
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add *.csv
-          git diff-index --quiet HEAD || git commit -m "Auto-update: $(date +'%Y-%m-%d')"
-          git remote set-url origin https://x-access-token:$GH_TOKEN@github.com/${{ github.repository }}
-          git push origin main
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Cleanup old files
+          git add *.csv || true
+          git diff --cached --quiet || git commit -m "Auto-update: $(date +'%Y-%m-%d')"
+
+          git push
+
+      - name: Cleanup old files (keep latest 3)
         run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
           for prefix in espen EMA_Cross_for; do
-            files=$(git ls-files -- "$prefix*.csv" | sort -r | awk 'NR>3')
-            [ -n "$files" ] && git rm -q $files
+            files=$(git ls-files "${prefix}*.csv" | sort -r | tail -n +4)
+            if [ -n "$files" ]; then
+              git rm -q $files
+            fi
           done
-          git diff-index --quiet HEAD || git commit -m "Auto-cleanup"
-          git push origin main
+
+          git diff --cached --quiet || git commit -m "Auto-cleanup old files"
+          git push
