@@ -1,0 +1,286 @@
+name: Advanced Net Volume Analysis
+
+on:
+  # Run daily at 6 PM NPT (12:45 UTC) after NEPSE market close
+  schedule:
+    - cron: '45 12 * * 0-4'  # Monday to Friday only
+  
+  # Manual trigger with options
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Analysis mode'
+        required: true
+        default: 'full'
+        type: choice
+        options:
+          - full
+          - quick
+          - test
+      notify:
+        description: 'Send notifications'
+        required: false
+        default: true
+        type: boolean
+  
+  # Trigger on new data files
+  push:
+    paths:
+      - 'espen_*.csv'
+
+jobs:
+  analyze-market:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    
+    steps:
+    - name: 📥 Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: 🐍 Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: 📦 Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pandas==2.1.4
+        pip install numpy==1.26.2
+        pip install requests==2.31.0
+        pip install matplotlib seaborn  # For future visualizations
+        echo "✅ Dependencies installed"
+    
+    - name: 🔍 Verify data files
+      run: |
+        echo "📂 Checking for espen CSV files..."
+        ls -lh espen_*.csv 2>/dev/null || echo "No espen files found"
+        
+        LATEST_FILE=$(ls -t espen_*.csv 2>/dev/null | head -n1)
+        if [ -z "$LATEST_FILE" ]; then
+          echo "❌ No espen data files found!"
+          exit 1
+        fi
+        
+        echo "✅ Latest file: $LATEST_FILE"
+        FILE_SIZE=$(stat -f%z "$LATEST_FILE" 2>/dev/null || stat -c%s "$LATEST_FILE")
+        echo "📊 File size: $FILE_SIZE bytes"
+        
+        # Check if file is not empty
+        if [ "$FILE_SIZE" -lt 1000 ]; then
+          echo "❌ File too small, might be corrupted"
+          exit 1
+        fi
+    
+    - name: 🚀 Run Multi-Symbol Diagnostic
+      id: diagnostic
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        PYTHONUNBUFFERED: 1
+      run: |
+        echo "🔍 Starting diagnostic analysis..."
+        python multi_symbol_diagnostic.py 2>&1 | tee diagnostic_log.txt
+        
+        # Capture exit code
+        EXIT_CODE=${PIPESTATUS[0]}
+        echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
+        
+        if [ $EXIT_CODE -eq 0 ]; then
+          echo "✅ Diagnostic completed successfully"
+        else
+          echo "❌ Diagnostic failed with exit code $EXIT_CODE"
+          exit $EXIT_CODE
+        fi
+    
+    - name: 📊 Analyze results
+      id: analyze
+      if: always()
+      run: |
+        echo "📊 Analyzing results..."
+        
+        if [ -f diagnostic_results.csv ]; then
+          # Count rows (subtract 1 for header)
+          TOTAL_SIGNALS=$(tail -n +2 diagnostic_results.csv | wc -l | tr -d ' ')
+          echo "total_signals=$TOTAL_SIGNALS" >> $GITHUB_OUTPUT
+          
+          # Count profitable signals
+          PROFITABLE=$(tail -n +2 diagnostic_results.csv | awk -F',' '$7 > 0' | wc -l | tr -d ' ')
+          echo "profitable=$PROFITABLE" >> $GITHUB_OUTPUT
+          
+          # Calculate win rate
+          if [ "$TOTAL_SIGNALS" -gt 0 ]; then
+            WIN_RATE=$(echo "scale=1; $PROFITABLE * 100 / $TOTAL_SIGNALS" | bc)
+            echo "win_rate=$WIN_RATE" >> $GITHUB_OUTPUT
+          else
+            echo "win_rate=0" >> $GITHUB_OUTPUT
+          fi
+          
+          # Get average P&L
+          AVG_PL=$(tail -n +2 diagnostic_results.csv | awk -F',' '{sum+=$7; count++} END {if(count>0) printf "%.2f", sum/count; else print "0"}')
+          echo "avg_pl=$AVG_PL" >> $GITHUB_OUTPUT
+          
+          # Count by mode
+          STANDARD_COUNT=$(tail -n +2 diagnostic_results.csv | awk -F',' '$2=="STANDARD"' | wc -l | tr -d ' ')
+          STRICT_COUNT=$(tail -n +2 diagnostic_results.csv | awk -F',' '$2=="STRICT"' | wc -l | tr -d ' ')
+          echo "standard_count=$STANDARD_COUNT" >> $GITHUB_OUTPUT
+          echo "strict_count=$STRICT_COUNT" >> $GITHUB_OUTPUT
+          
+          echo "✅ Analysis complete"
+        else
+          echo "❌ No results file found"
+          echo "total_signals=0" >> $GITHUB_OUTPUT
+          echo "profitable=0" >> $GITHUB_OUTPUT
+          echo "win_rate=0" >> $GITHUB_OUTPUT
+          echo "avg_pl=0" >> $GITHUB_OUTPUT
+          echo "standard_count=0" >> $GITHUB_OUTPUT
+          echo "strict_count=0" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: 📈 Generate comparison report
+      if: success()
+      run: |
+        echo "📈 Generating comparison report..."
+        
+        # Create a simple comparison report
+        cat > comparison_report.md << 'EOF'
+        # 📊 Net Volume Diagnostic Report
+        
+        **Generated:** $(date +'%Y-%m-%d %H:%M:%S UTC')
+        
+        ## Summary
+        - **Total Signals:** ${{ steps.analyze.outputs.total_signals }}
+        - **Profitable Signals:** ${{ steps.analyze.outputs.profitable }}
+        - **Win Rate:** ${{ steps.analyze.outputs.win_rate }}%
+        - **Average P&L:** ${{ steps.analyze.outputs.avg_pl }}%
+        
+        ## By Mode
+        - **STANDARD Mode:** ${{ steps.analyze.outputs.standard_count }} signals
+        - **STRICT Mode:** ${{ steps.analyze.outputs.strict_count }} signals
+        
+        ## Files Generated
+        - `diagnostic_results.csv` - Full results
+        - `diagnostic_log.txt` - Execution log
+        
+        ---
+        *Generated by GitHub Actions*
+        EOF
+        
+        echo "✅ Report generated"
+    
+    - name: 💾 Commit results to repository
+      id: commit
+      if: success()
+      run: |
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        
+        # Add all diagnostic files
+        git add diagnostic_results.csv 2>/dev/null || true
+        git add diagnostic_results_*.csv 2>/dev/null || true
+        git add comparison_report.md 2>/dev/null || true
+        git add diagnostic_log.txt 2>/dev/null || true
+        
+        # Check if there are changes
+        if git diff --staged --quiet; then
+          echo "No changes to commit"
+          echo "committed=false" >> $GITHUB_OUTPUT
+        else
+          COMMIT_MSG="🔍 Automated diagnostic - $(date +'%Y-%m-%d') - ${{ steps.analyze.outputs.total_signals }} signals"
+          git commit -m "$COMMIT_MSG"
+          git push
+          echo "committed=true" >> $GITHUB_OUTPUT
+          echo "✅ Changes committed and pushed"
+        fi
+    
+    - name: 📦 Upload artifacts
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: diagnostic-results-${{ github.run_number }}
+        path: |
+          diagnostic_results*.csv
+          diagnostic_log.txt
+          comparison_report.md
+        retention-days: 90
+        compression-level: 6
+    
+    - name: 📝 Create job summary
+      if: always()
+      run: |
+        echo "# 🔍 Net Volume Diagnostic Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        echo "**📅 Date:** $(date +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+        echo "**🔢 Run Number:** #${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ steps.diagnostic.outputs.exit_code }}" == "0" ]; then
+          echo "## ✅ Analysis Successful" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Total Signals | ${{ steps.analyze.outputs.total_signals }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Profitable | ${{ steps.analyze.outputs.profitable }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Win Rate | ${{ steps.analyze.outputs.win_rate }}% |" >> $GITHUB_STEP_SUMMARY
+          echo "| Avg P&L | ${{ steps.analyze.outputs.avg_pl }}% |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### By Mode" >> $GITHUB_STEP_SUMMARY
+          echo "- **STANDARD:** ${{ steps.analyze.outputs.standard_count }} signals" >> $GITHUB_STEP_SUMMARY
+          echo "- **STRICT:** ${{ steps.analyze.outputs.strict_count }} signals" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.commit.outputs.committed }}" == "true" ]; then
+            echo "✅ Results committed to repository" >> $GITHUB_STEP_SUMMARY
+          fi
+        else
+          echo "## ❌ Analysis Failed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Check the logs for details." >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## 📥 Download Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "Results are available as artifacts in this workflow run:" >> $GITHUB_STEP_SUMMARY
+        echo "[Download Artifacts](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
+    
+    - name: 🚨 Handle failures
+      if: failure()
+      run: |
+        echo "❌ Workflow failed!"
+        echo "Check diagnostic_log.txt for details"
+        
+        if [ -f diagnostic_log.txt ]; then
+          echo "Last 50 lines of log:"
+          tail -n 50 diagnostic_log.txt
+        fi
+    
+    - name: 🧹 Cleanup old artifacts (keep last 30 days)
+      if: success()
+      run: |
+        echo "🧹 Note: Artifacts older than 90 days will be automatically deleted"
+        echo "You can download them from the Actions tab before they expire"
+
+  # Optional: Send notifications (requires additional setup)
+  notify:
+    needs: analyze-market
+    runs-on: ubuntu-latest
+    if: github.event.inputs.notify == 'true' || github.event_name == 'schedule'
+    
+    steps:
+    - name: 📧 Send summary (placeholder)
+      run: |
+        echo "📧 Notification step - configure your preferred notification method"
+        echo "Options: Email, Slack, Discord, Telegram, etc."
+        echo "Total Signals: ${{ needs.analyze-market.outputs.total_signals }}"
+        
+        # Example for Slack (requires SLACK_WEBHOOK secret):
+        # curl -X POST ${{ secrets.SLACK_WEBHOOK }} \
+        #   -H 'Content-Type: application/json' \
+        #   -d '{"text":"New diagnostic results available!"}'
