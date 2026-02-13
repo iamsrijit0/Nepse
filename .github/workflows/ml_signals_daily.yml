@@ -1,4 +1,4 @@
-name: ML Signals Daily Automation
+name:  Net Volume
 
 on:
   schedule:
@@ -64,7 +64,7 @@ jobs:
           echo "🤖 Starting ML Signal Generator..."
           echo "📅 Nepal Time: $(date)"
           echo "📊 Using data: ${{ steps.check_data.outputs.data_file }}"
-          python daily_ml_runner_with_upload.py
+          python ml_adaptive_strategy.py
       
       - name: Display Generated Signals
         if: steps.check_data.outputs.has_data == 'true'
