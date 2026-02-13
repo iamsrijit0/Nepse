@@ -279,6 +279,9 @@ def analyze_symbol(symbol, df_symbol):
     if len(df_symbol) < 100:
         return []
     
+    # Set Date as index for proper datetime handling
+    df_symbol = df_symbol.set_index('Date')
+    
     # Calculate indicators
     df_with_indicators = calculate_net_volume(df_symbol)
     
