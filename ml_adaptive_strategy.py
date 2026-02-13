@@ -26,6 +26,7 @@ from datetime import datetime, timedelta
 import warnings
 import base64
 import json
+import traceback
 
 warnings.filterwarnings('ignore')
 
@@ -43,8 +44,8 @@ EXCLUDED_SYMBOLS = [
     "ICFCD88", "EBLD91", "ANLB", "GBILD84/85", "GBILD86/87", "NICD88"
 ]
 
-# Output file
-DIAGNOSTIC_RESULTS_CSV = "ml_data/diagnostic_results.csv"
+# Output file (upload to root directory to avoid path issues)
+DIAGNOSTIC_RESULTS_CSV = "diagnostic_results.csv"
 
 # GitHub credentials
 GH_TOKEN = os.environ.get("GH_TOKEN")
@@ -88,17 +89,30 @@ def get_latest_espen_csv():
 def upload_csv_to_github(df, repo_path, commit_message):
     """Upload a CSV file to GitHub"""
     try:
+        print(f"\n📤 Preparing to upload to: {repo_path}")
+        
         csv_content = df.to_csv(index=False)
         content_base64 = base64.b64encode(csv_content.encode()).decode()
         
+        print(f"   CSV size: {len(csv_content)} bytes, {len(df)} rows")
+        
         # Check if file exists to get SHA
         check_url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/contents/{repo_path}"
+        print(f"   Checking if file exists: {check_url}")
+        
         check_response = requests.get(check_url, headers=HEADERS, params={"ref": BRANCH})
         
         sha = None
         if check_response.status_code == 200:
             sha = check_response.json().get('sha')
+            print(f"   File exists, SHA: {sha[:8]}...")
+        elif check_response.status_code == 404:
+            print(f"   File doesn't exist, will create new file")
+        else:
+            print(f"   Unexpected response: {check_response.status_code}")
+            print(f"   Response: {check_response.text[:500]}")
         
+        # Prepare upload data
         upload_data = {
             "message": commit_message,
             "content": content_base64,
@@ -107,18 +121,41 @@ def upload_csv_to_github(df, repo_path, commit_message):
         if sha:
             upload_data["sha"] = sha
         
+        # Upload
         upload_url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/contents/{repo_path}"
+        print(f"   Uploading to: {upload_url}")
+        
         response = requests.put(upload_url, headers=HEADERS, data=json.dumps(upload_data))
         
         if response.status_code in [200, 201]:
-            print(f"✅ Uploaded {repo_path}")
+            print(f"✅ Successfully uploaded {repo_path}")
+            result = response.json()
+            if 'content' in result and 'html_url' in result['content']:
+                print(f"   URL: {result['content']['html_url']}")
             return True
         else:
-            print(f"⚠️ Upload failed for {repo_path}: {response.status_code}")
-            print(f"   Response: {response.text[:200]}")
+            print(f"❌ Upload failed for {repo_path}")
+            print(f"   Status code: {response.status_code}")
+            print(f"   Response: {response.text[:1000]}")
+            
+            # Try to parse error message
+            try:
+                error_data = response.json()
+                if 'message' in error_data:
+                    print(f"   Error message: {error_data['message']}")
+                if 'errors' in error_data:
+                    print(f"   Errors: {error_data['errors']}")
+            except:
+                pass
+            
             return False
+            
     except Exception as e:
-        print(f"❌ Error uploading {repo_path}: {str(e)}")
+        print(f"❌ Exception during upload of {repo_path}")
+        print(f"   Error type: {type(e).__name__}")
+        print(f"   Error message: {str(e)}")
+        import traceback
+        print(f"   Traceback: {traceback.format_exc()}")
         return False
 
 # ===========================
@@ -332,6 +369,32 @@ def main():
     print("="*80)
     print(f"🕒 Run time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     
+    # Validate GitHub token
+    print("\n🔑 Validating GitHub credentials...")
+    if not GH_TOKEN:
+        print("❌ ERROR: GH_TOKEN environment variable not set!")
+        print("   Set it with: export GH_TOKEN='your_token_here'")
+        return None
+    
+    # Test GitHub API access
+    test_url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}"
+    try:
+        test_response = requests.get(test_url, headers=HEADERS)
+        if test_response.status_code == 200:
+            print(f"✅ GitHub API access verified")
+            repo_info = test_response.json()
+            print(f"   Repository: {repo_info['full_name']}")
+            print(f"   Default branch: {repo_info['default_branch']}")
+        else:
+            print(f"⚠️ GitHub API returned status {test_response.status_code}")
+            print(f"   Response: {test_response.text[:200]}")
+            if test_response.status_code == 401:
+                print("   ERROR: Invalid or expired GitHub token!")
+                return None
+    except Exception as e:
+        print(f"❌ GitHub API test failed: {str(e)}")
+        return None
+    
     # Get latest espen CSV from GitHub
     print("\n📥 Fetching latest NEPSE data from GitHub...")
     csv_url, data_date = get_latest_espen_csv()
@@ -483,16 +546,28 @@ def main():
     print("📤 UPLOADING RESULTS TO GITHUB")
     print(f"{'='*80}")
     
+    # Always save a local backup first
+    local_filename = f'diagnostic_results_{latest_date.strftime("%Y%m%d")}.csv'
+    results_df.to_csv(local_filename, index=False)
+    print(f"💾 Local backup saved: {local_filename}")
+    
     commit_message = f"🔍 Multi-Symbol Diagnostic Results - {latest_date.strftime('%Y-%m-%d')} - {total_signals} signals"
+    
+    print(f"\n📤 Attempting GitHub upload...")
     success = upload_csv_to_github(results_df, DIAGNOSTIC_RESULTS_CSV, commit_message)
     
     if success:
-        print(f"\n✅ Results uploaded successfully!")
+        print(f"\n✅ Results uploaded successfully to GitHub!")
         print(f"🌐 View at: https://github.com/{REPO_OWNER}/{REPO_NAME}/blob/{BRANCH}/{DIAGNOSTIC_RESULTS_CSV}")
+        print(f"\n💡 You can also download the local backup: {local_filename}")
     else:
-        print(f"\n⚠️ Upload failed. Saving locally...")
-        results_df.to_csv('diagnostic_results_local.csv', index=False)
-        print(f"💾 Saved to: diagnostic_results_local.csv")
+        print(f"\n❌ GitHub upload failed!")
+        print(f"💾 Results saved locally to: {local_filename}")
+        print(f"\n💡 Troubleshooting:")
+        print(f"   1. Check your GH_TOKEN is valid and has write permissions")
+        print(f"   2. Verify repository name: {REPO_OWNER}/{REPO_NAME}")
+        print(f"   3. Check branch exists: {BRANCH}")
+        print(f"   4. You can manually upload the file: {local_filename}")
     
     # Mode comparison
     print(f"\n{'='*80}")
