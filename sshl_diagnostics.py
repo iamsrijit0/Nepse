@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-SSHL Multi-Symbol Diagnostic Script
-Analyzes Net Volume signals across multiple symbols from espen_*.csv files
+SSHL Multi-Symbol Diagnostic Script - Latest Signal Version
+Produces one row per symbol, using the most recent signal (if any)
+Output CSV sorted by signal date descending
 """
-
 import os
 import re
 import base64
@@ -17,10 +17,9 @@ from datetime import datetime
 # CONFIG
 # ===========================
 REPO_OWNER = "iamsrijit0"
-REPO_NAME = "Nepse"
-BRANCH = "main"
+REPO_NAME  = "Nepse"
+BRANCH     = "main"
 
-# Symbols to exclude from analysis
 EXCLUDED_SYMBOLS = [
     "EBLD852", "EB89", "NABILD2089", "MBLD2085", "SBID89", "SBID2090",
     "SBLD2091", "NIMBD90", "RBBD2088", "CCBD88", "ICFCD88", "EBLD91",
@@ -120,7 +119,6 @@ def load_market_data():
     response = requests.get(csv_url)
     csv_content = response.text
     
-    # Find header line
     lines = csv_content.strip().split('\n')
     header_line = None
     data_start_index = 0
@@ -134,14 +132,12 @@ def load_market_data():
     if header_line is None:
         raise ValueError("Could not find header line")
     
-    # Reconstruct CSV
     if data_start_index > 0:
-        data_lines = lines[:data_start_index]
+        data_lines = lines[data_start_index:]
         reconstructed_csv = header_line + '\n' + '\n'.join(data_lines)
     else:
         reconstructed_csv = csv_content
     
-    # Parse CSV
     try:
         df = pd.read_csv(StringIO(reconstructed_csv), sep='\t')
         if len(df.columns) == 1:
@@ -149,10 +145,8 @@ def load_market_data():
     except:
         df = pd.read_csv(StringIO(reconstructed_csv), sep=',')
     
-    # Clean column names
     df.columns = df.columns.str.strip()
     
-    # Parse dates
     original_dates = df["Date"].copy()
     df["Date"] = pd.to_datetime(df["Date"], format='%m/%d/%Y', errors='coerce')
     
@@ -161,7 +155,6 @@ def load_market_data():
     if df["Date"].isna().all():
         df["Date"] = pd.to_datetime(original_dates, errors='coerce')
     
-    # Convert numeric columns
     for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='coerce')
@@ -178,44 +171,31 @@ def load_market_data():
 # NET VOLUME CALCULATIONS
 # ===========================
 def calculate_net_volume(df_symbol):
-    """Calculate Net Volume and related metrics"""
     df = df_symbol.copy()
     
-    # Net Volume = (Close - Open) * Volume
-    df['Net_Volume'] = (df['Close'] - df['Open']) * df['Volume']
-    
-    # Cumulative Net Volume
-    df['Cumulative_NV'] = df['Net_Volume'].cumsum()
-    
-    # Net Volume 3-month low
-    df['NV_3M_Low'] = df['Net_Volume'].rolling(window=63, min_periods=20).min()
-    
-    # Net Volume improvement
+    df['Net_Volume']       = (df['Close'] - df['Open']) * df['Volume']
+    df['Cumulative_NV']    = df['Net_Volume'].cumsum()
+    df['NV_3M_Low']        = df['Net_Volume'].rolling(window=63, min_periods=20).min()
     df['NV_Improvement_Pct'] = 0.0
+    
     for i in range(1, len(df)):
-        if df['Net_Volume'].iloc[i-1] != 0:
+        prev = df['Net_Volume'].iloc[i-1]
+        if prev != 0:
             df.loc[df.index[i], 'NV_Improvement_Pct'] = (
-                (df['Net_Volume'].iloc[i] - df['Net_Volume'].iloc[i-1]) / 
-                abs(df['Net_Volume'].iloc[i-1]) * 100
+                (df['Net_Volume'].iloc[i] - prev) / abs(prev) * 100
             )
     
-    # Price metrics
-    df['High_252D'] = df['High'].rolling(window=252, min_periods=50).max()
-    df['Drawdown_Pct'] = ((df['Close'] - df['High_252D']) / df['High_252D']) * 100
-    
-    # EMAs
-    df['EMA_50'] = df['Close'].ewm(span=50, adjust=False).mean()
-    df['Pct_From_EMA50'] = ((df['Close'] - df['EMA_50']) / df['EMA_50']) * 100
-    
-    # Volume ratio
+    df['High_252D']     = df['High'].rolling(window=252, min_periods=50).max()
+    df['Drawdown_Pct']  = ((df['Close'] - df['High_252D']) / df['High_252D']) * 100
+    df['EMA_50']        = df['Close'].ewm(span=50, adjust=False).mean()
+    df['Pct_From_EMA50']= ((df['Close'] - df['EMA_50']) / df['EMA_50']) * 100
     df['Volume_SMA_20'] = df['Volume'].rolling(window=20).mean()
-    df['Volume_Ratio'] = df['Volume'] / df['Volume_SMA_20']
+    df['Volume_Ratio']  = df['Volume'] / df['Volume_SMA_20']
     
-    # RSI
     delta = df['Close'].diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-    rs = gain / loss
+    gain  = delta.where(delta > 0, 0).rolling(window=14).mean()
+    loss  = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+    rs    = gain / loss
     df['RSI'] = 100 - (100 / (1 + rs))
     
     return df
@@ -224,20 +204,15 @@ def calculate_net_volume(df_symbol):
 # SIGNAL DETECTION
 # ===========================
 def detect_standard_signals(df):
-    """Detect signals using standard mode criteria"""
     signals = pd.Series(False, index=df.index)
-    
-    # Standard mode criteria (simplified example)
     for i in range(50, len(df)):
         if (df['Net_Volume'].iloc[i] > df['Net_Volume'].iloc[i-1] and
             df['RSI'].iloc[i] < 40 and
             df['Drawdown_Pct'].iloc[i] < -10):
             signals.iloc[i] = True
-    
     return signals
 
 def detect_strict_signals(df, params=None):
-    """Detect signals using strict mode criteria"""
     if params is None:
         params = {
             'nv_3m_low_pct': 10,
@@ -252,14 +227,10 @@ def detect_strict_signals(df, params=None):
     
     for i in range(50, len(df)):
         row = df.iloc[i]
-        
-        # Calculate NV position relative to 3M low
-        if row['NV_3M_Low'] != 0:
-            nv_pct = ((row['Net_Volume'] - row['NV_3M_Low']) / abs(row['NV_3M_Low'])) * 100
-        else:
+        if row['NV_3M_Low'] == 0:
             continue
+        nv_pct = ((row['Net_Volume'] - row['NV_3M_Low']) / abs(row['NV_3M_Low'])) * 100
         
-        # Strict criteria
         if (nv_pct <= params['nv_3m_low_pct'] and
             row['NV_Improvement_Pct'] >= params['nv_improvement_pct'] and
             row['Drawdown_Pct'] <= params['drawdown_min'] and
@@ -270,44 +241,36 @@ def detect_strict_signals(df, params=None):
     return signals
 
 # ===========================
-# DIAGNOSTIC ANALYSIS
+# ANALYZE SINGLE SYMBOL → ONE ROW
 # ===========================
 def analyze_symbol(symbol, df_symbol):
-    """Run diagnostic analysis on a single symbol - returns list of signal rows"""
-    
-    # Skip if insufficient data
     if len(df_symbol) < 100:
-        return []
+        return None
     
-    # Set Date as index for proper datetime handling
-    df_symbol = df_symbol.set_index('Date')
+    df_symbol = df_symbol.set_index('Date').sort_index()
+    df_ind = calculate_net_volume(df_symbol)
     
-    # Calculate indicators
-    df_with_indicators = calculate_net_volume(df_symbol)
+    std_signals  = detect_standard_signals(df_ind)
+    str_signals  = detect_strict_signals(df_ind)
     
-    # Detect signals
-    standard_signals = detect_standard_signals(df_with_indicators)
-    strict_signals = detect_strict_signals(df_with_indicators)
+    num_std  = std_signals.sum()
+    num_str  = str_signals.sum()
     
-    num_standard = standard_signals.sum()
-    num_strict = strict_signals.sum()
+    latest_close = df_ind['Close'].iloc[-1]
+    latest_rsi   = df_ind['RSI'].iloc[-1]
     
-    # Get latest close price for P/L calculation
-    latest_close = df_with_indicators['Close'].iloc[-1]
-    latest_rsi = df_with_indicators['RSI'].iloc[-1]
-    
-    if num_standard == 0:
-        # Return single row for symbols with no signals
-        return [{
+    # No signals → return placeholder row
+    if num_std == 0:
+        return {
             'Symbol': symbol,
-            'Date': 'N/A',
-            'Close_at_Signal': 0,
+            'Signal_Date': 'N/A',
+            'Close_at_Signal': 0.0,
             'Latest_Close': round(latest_close, 2),
-            'P/L_%': 0,
+            'P/L_%': 0.0,
             'Status': 'NO_SIGNALS',
             'Standard_Signals': 0,
             'Strict_Signals': 0,
-            'Latest_RSI': round(latest_rsi, 1) if not pd.isna(latest_rsi) else 0,
+            'Latest_RSI': round(latest_rsi, 1) if pd.notna(latest_rsi) else 0.0,
             'NV_Range': 'N/A',
             'Recommended_NV_Threshold': 10,
             'Recommended_NV_Improvement': 30,
@@ -315,13 +278,27 @@ def analyze_symbol(symbol, df_symbol):
             'Recommended_EMA50_Min': -25,
             'Recommended_EMA50_Max': -15,
             'Recommended_Volume_Ratio': 0.5
-        }]
+        }
     
-    # Get signal dates and rows
-    standard_dates = df_with_indicators[standard_signals].index
-    signal_rows = []
+    # ─── Has signals → take the LATEST one ───
+    signal_dates = df_ind[std_signals].index
+    if len(signal_dates) == 0:
+        return None
     
-    # Get metrics for all standard signals
+    last_date = signal_dates.max()
+    row = df_ind.loc[last_date]
+    
+    close_signal = row['Close']
+    pl_pct = ((latest_close - close_signal) / close_signal * 100) if close_signal != 0 else 0.0
+    
+    status = 'STRICT_PASS' if str_signals.loc[last_date] else 'STANDARD_ONLY'
+    
+    # NV position at signal
+    nv_pct_at_signal = 'N/A'
+    if row['NV_3M_Low'] != 0:
+        nv_pct_at_signal = ((row['Net_Volume'] - row['NV_3M_Low']) / abs(row['NV_3M_Low'])) * 100
+    
+    # Collect metrics from ALL signals for recommendation logic
     metrics = {
         'nv_3m_low_pct': [],
         'nv_improvement': [],
@@ -330,145 +307,118 @@ def analyze_symbol(symbol, df_symbol):
         'volume_ratio': []
     }
     
-    # Create a row for each signal
-    for date in standard_dates:
-        row = df_with_indicators.loc[date]
-        signal_close = row['Close']
-        
-        # Calculate P/L assuming buy at signal, sell at latest close
-        pl_pct = ((latest_close - signal_close) / signal_close) * 100
-        
-        # Check if this signal would pass strict mode
-        is_strict_signal = strict_signals.loc[date]
-        
-        # Collect metrics
-        if row['NV_3M_Low'] != 0:
-            nv_pct = ((row['Net_Volume'] - row['NV_3M_Low']) / abs(row['NV_3M_Low'])) * 100
-            metrics['nv_3m_low_pct'].append(nv_pct)
-        
-        metrics['nv_improvement'].append(row['NV_Improvement_Pct'])
-        metrics['drawdown'].append(row['Drawdown_Pct'])
-        metrics['ema50_pct'].append(row['Pct_From_EMA50'])
-        metrics['volume_ratio'].append(row['Volume_Ratio'])
-        
-        signal_rows.append({
-            'date': date,
-            'close_at_signal': signal_close,
-            'pl_pct': pl_pct,
-            'is_strict': is_strict_signal
-        })
+    for dt in signal_dates:
+        r = df_ind.loc[dt]
+        if r['NV_3M_Low'] != 0:
+            metrics['nv_3m_low_pct'].append(
+                ((r['Net_Volume'] - r['NV_3M_Low']) / abs(r['NV_3M_Low'])) * 100
+            )
+        metrics['nv_improvement'].append(r['NV_Improvement_Pct'])
+        metrics['drawdown'].append(r['Drawdown_Pct'])
+        metrics['ema50_pct'].append(r['Pct_From_EMA50'])
+        metrics['volume_ratio'].append(r['Volume_Ratio'])
     
-    # Calculate recommended parameters (same for all signals of this symbol)
-    recommended_params = {}
+    rec = {}
     if metrics['nv_3m_low_pct']:
-        recommended_params['nv_3m_low_pct'] = max(metrics['nv_3m_low_pct']) + 5
+        rec['nv_3m_low_pct']     = max(metrics['nv_3m_low_pct']) + 5
     if metrics['nv_improvement']:
-        recommended_params['nv_improvement_pct'] = min(metrics['nv_improvement']) - 5
+        rec['nv_improvement_pct'] = min(metrics['nv_improvement']) - 5
     if metrics['drawdown']:
-        recommended_params['drawdown_min'] = max(metrics['drawdown']) + 2
+        rec['drawdown_min']      = max(metrics['drawdown']) + 2
     if metrics['ema50_pct']:
-        recommended_params['ema50_min'] = min(metrics['ema50_pct']) - 5
-        recommended_params['ema50_max'] = max(metrics['ema50_pct']) + 5
+        rec['ema50_min']         = min(metrics['ema50_pct']) - 5
+        rec['ema50_max']         = max(metrics['ema50_pct']) + 5
     if metrics['volume_ratio']:
-        recommended_params['volume_ratio_max'] = max(metrics['volume_ratio']) + 0.1
+        rec['volume_ratio_max']   = max(metrics['volume_ratio']) + 0.1
     
-    nv_range = f"{min(metrics['nv_3m_low_pct']):.1f} to {max(metrics['nv_3m_low_pct']):.1f}" if metrics['nv_3m_low_pct'] else 'N/A'
+    nv_range_str = f"{min(metrics['nv_3m_low_pct']):.1f} – {max(metrics['nv_3m_low_pct']):.1f}" \
+                   if metrics['nv_3m_low_pct'] else 'N/A'
     
-    # Create output rows (one per signal)
-    output_rows = []
-    for sig in signal_rows:
-        output_rows.append({
-            'Symbol': symbol,
-            'Date': sig['date'].strftime('%Y-%m-%d'),
-            'Close_at_Signal': round(sig['close_at_signal'], 2),
-            'Latest_Close': round(latest_close, 2),
-            'P/L_%': round(sig['pl_pct'], 2),
-            'Status': 'STRICT_PASS' if sig['is_strict'] else 'STANDARD_ONLY',
-            'Standard_Signals': num_standard,
-            'Strict_Signals': num_strict,
-            'Latest_RSI': round(latest_rsi, 1) if not pd.isna(latest_rsi) else 0,
-            'NV_Range': nv_range,
-            'Recommended_NV_Threshold': round(recommended_params.get('nv_3m_low_pct', 10), 0),
-            'Recommended_NV_Improvement': round(recommended_params.get('nv_improvement_pct', 30), 0),
-            'Recommended_Drawdown': round(recommended_params.get('drawdown_min', -15), 0),
-            'Recommended_EMA50_Min': round(recommended_params.get('ema50_min', -25), 0),
-            'Recommended_EMA50_Max': round(recommended_params.get('ema50_max', -15), 0),
-            'Recommended_Volume_Ratio': round(recommended_params.get('volume_ratio_max', 0.5), 2)
-        })
-    
-    return output_rows
+    return {
+        'Symbol': symbol,
+        'Signal_Date': last_date.strftime('%Y-%m-%d'),
+        'Close_at_Signal': round(close_signal, 2),
+        'Latest_Close': round(latest_close, 2),
+        'P/L_%': round(pl_pct, 2),
+        'Status': status,
+        'Standard_Signals': num_std,
+        'Strict_Signals': num_str,
+        'Latest_RSI': round(latest_rsi, 1) if pd.notna(latest_rsi) else 0.0,
+        'NV_Range': nv_range_str,
+        'Recommended_NV_Threshold': round(rec.get('nv_3m_low_pct', 10), 0),
+        'Recommended_NV_Improvement': round(rec.get('nv_improvement_pct', 30), 0),
+        'Recommended_Drawdown': round(rec.get('drawdown_min', -15), 0),
+        'Recommended_EMA50_Min': round(rec.get('ema50_min', -25), 0),
+        'Recommended_EMA50_Max': round(rec.get('ema50_max', -15), 0),
+        'Recommended_Volume_Ratio': round(rec.get('volume_ratio_max', 0.5), 2)
+    }
 
 # ===========================
-# MAIN EXECUTION
+# MAIN
 # ===========================
 def main():
     print("\n" + "="*80)
-    print("SSHL MULTI-SYMBOL DIAGNOSTIC - FINDING SIGNAL ISSUES")
+    print("SSHL DIAGNOSTIC - LATEST SIGNAL PER SYMBOL")
+    print("One row per symbol • sorted by most recent signal date")
     print("="*80)
     
-    # Load data
-    df, latest_date = load_market_data()
+    df, market_date = load_market_data()
+    symbols = [s for s in df['Symbol'].unique() if s not in EXCLUDED_SYMBOLS]
     
-    # Get unique symbols
-    symbols = df['Symbol'].unique()
-    symbols = [s for s in symbols if s not in EXCLUDED_SYMBOLS]
+    print(f"\nAnalyzing {len(symbols)} symbols...")
     
-    print(f"\n📊 Analyzing {len(symbols)} symbols (excluding {len(EXCLUDED_SYMBOLS)} filtered symbols)")
-    
-    # Analyze each symbol
-    all_signal_rows = []
-    for i, symbol in enumerate(symbols, 1):
+    results = []
+    for i, sym in enumerate(symbols, 1):
         if i % 50 == 0:
-            print(f"  Progress: {i}/{len(symbols)} symbols...")
-        
-        symbol_data = df[df['Symbol'] == symbol].copy().sort_values('Date')
-        signal_rows = analyze_symbol(symbol, symbol_data)
-        
-        # Add all signal rows from this symbol
-        all_signal_rows.extend(signal_rows)
+            print(f"  {i:3d}/{len(symbols)} ...")
+        data = df[df['Symbol'] == sym].copy()
+        row = analyze_symbol(sym, data)
+        if row:
+            results.append(row)
     
-    # Create results DataFrame
-    results_df = pd.DataFrame(all_signal_rows)
+    if not results:
+        print("No valid results generated.")
+        return
     
-    # Summary statistics
-    print(f"\n{'='*80}")
-    print("ANALYSIS SUMMARY")
-    print("="*80)
+    df_out = pd.DataFrame(results)
     
-    total_signals = len(results_df)
-    signals_found = len(results_df[results_df['Status'] != 'NO_SIGNALS'])
-    strict_pass = len(results_df[results_df['Status'] == 'STRICT_PASS'])
-    standard_only = len(results_df[results_df['Status'] == 'STANDARD_ONLY'])
-    no_signals = len(results_df[results_df['Status'] == 'NO_SIGNALS'])
+    # Split & sort
+    has_signal = df_out['Signal_Date'] != 'N/A'
+    with_signal = df_out[has_signal].copy()
+    without     = df_out[~has_signal].copy()
     
-    print(f"Total signal rows: {total_signals}")
-    print(f"Signals found: {signals_found}")
-    print(f"  - Strict pass: {strict_pass}")
-    print(f"  - Standard only: {standard_only}")
-    print(f"Symbols with no signals: {no_signals}")
+    if not with_signal.empty:
+        with_signal['dt'] = pd.to_datetime(with_signal['Signal_Date'])
+        with_signal = with_signal.sort_values('dt', ascending=False).drop(columns=['dt'])
     
-    # Calculate average P/L
-    if signals_found > 0:
-        profitable = len(results_df[results_df['P/L_%'] > 0])
-        avg_pl = results_df[results_df['Status'] != 'NO_SIGNALS']['P/L_%'].mean()
-        print(f"\nProfit/Loss Statistics:")
-        print(f"  Profitable signals: {profitable}/{signals_found} ({profitable/signals_found*100:.1f}%)")
-        print(f"  Average P/L: {avg_pl:.2f}%")
+    final = pd.concat([with_signal, without], ignore_index=True)
     
-    # Sort by P/L descending (most profitable first)
-    results_df = results_df.sort_values('P/L_%', ascending=False).reset_index(drop=True)
+    # Summary
+    print("\n" + "="*70)
+    print("SUMMARY")
+    print("="*70)
+    print(f"Total symbols:       {len(final):3d}")
+    print(f"  With signals:      {len(with_signal):3d}")
+    print(f"    • Strict pass    {len(final[(final['Status']=='STRICT_PASS') & has_signal]):3d}")
+    print(f"    • Standard only  {len(final[(final['Status']=='STANDARD_ONLY') & has_signal]):3d}")
+    print(f"  No signals:        {len(without):3d}")
     
-    # Upload results
-    output_file = f"SSHL_DIAGNOSTIC_RESULTS_{latest_date}.csv"
-    upload_to_github(output_file, results_df.to_csv(index=False))
-    delete_old_files("SSHL_DIAGNOSTIC_RESULTS_", output_file)
+    if not with_signal.empty:
+        print(f"Avg P/L (latest signals): {with_signal['P/L_%'].mean():.2f}%")
     
-    # Show top signals by P/L
-    print(f"\n🏆 TOP 10 MOST PROFITABLE SIGNALS:")
-    top_10 = results_df[results_df['Status'] != 'NO_SIGNALS'].head(10)
-    print(top_10[['Symbol', 'Date', 'Close_at_Signal', 'Latest_Close', 'P/L_%', 'Status']].to_string(index=False))
+    # Save
+    filename = f"SSHL_LATEST_SIGNALS_{market_date}.csv"
+    upload_to_github(filename, final.to_csv(index=False))
+    delete_old_files("SSHL_LATEST_SIGNALS_", filename)
+    delete_old_files("SSHL_DIAGNOSTIC_RESULTS_", "")
     
-    print(f"\n✅ Results uploaded to: {output_file}")
+    # Preview top 10
+    print("\nTop 10 most recent signals:")
+    print(final.head(12)[[
+        'Symbol','Signal_Date','P/L_%','Status','Latest_RSI','Close_at_Signal','Latest_Close'
+    ]].to_string(index=False))
+    
+    print(f"\nResults saved → {filename}")
     print("="*80)
 
 if __name__ == "__main__":
