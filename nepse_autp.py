@@ -33,7 +33,7 @@ import matplotlib.pyplot as plt
 #     csv_data_base64 = base64.b64encode(csv_data.encode()).decode()
 
 #     # Define the GitHub repository URL
-#     repo_url = 'https://github.com/iamsrijit/Nepse'
+#     repo_url = 'https://github.com/iamsrijit0/Nepse'
 
 #     # Define the file name with today's date
 #     # file_name = f"nepse_{datetime.today().strftime('%Y-%m-%d')}.csv"
@@ -49,8 +49,8 @@ import matplotlib.pyplot as plt
 #     print(f"An error occurred: {e}")  # Handle the exception
 
 # file_path = file_name
-# upload_url = f'https://api.github.com/repos/iamsrijit/Nepse/contents/{file_path}'
-# # upload_url = f'https://api.github.com/repos/iamsrijit/Nepse/contents{file_path}'
+# upload_url = f'https://api.github.com/repos/iamsrijit0/Nepse/contents/{file_path}'
+# # upload_url = f'https://api.github.com/repos/iamsrijit0/Nepse/contents{file_path}'
 
 # headers = {
 #     'Authorization': f'token {GH_TOKEN}',
@@ -76,7 +76,7 @@ token = os.getenv("GH_TOKEN")
 #     # csv_data_base64 = base64.b64encode(csv_data.encode()).decode()
 
 #     # Define the GitHub repository URL
-#     repo_url = 'https://github.com/iamsrijit/Nepse'
+#     repo_url = 'https://github.com/iamsrijit0/Nepse'
 
 #     # Define the file name with today's date
 #     # file_name = f'espen_{datetime.today().strftime("%Y-%m-%d")}.csv'
@@ -222,8 +222,8 @@ import os
 # file_path = file_name  # Remove the leading slash
 
 
-# # upload_url = f'https://api.github.com/repos/iamsrijit/Nepse/contents/{file_path}'
-# upload_url = f"https://api.github.com/repos/iamsrijit/Nepse/contents/{file_path}"
+# # upload_url = f'https://api.github.com/repos/iamsrijit0/Nepse/contents/{file_path}'
+# upload_url = f"https://api.github.com/repos/iamsrijit0/Nepse/contents/{file_path}"
 
 import pandas as pd
 import requests
@@ -260,14 +260,14 @@ def get_latest_file_url(repo_url):
     return latest_file_url
 
 # Replace with the actual GitHub repository URL
-repo_url = 'https://github.com/iamsrijit/Nepse/tree/main'
+repo_url = 'https://github.com/iamsrijit0/Nepse/tree/main'
 
 try:
     # Get the latest file URL
     latest_file_url = get_latest_file_url(repo_url)
 
     # Correct the file URL
-    latest_file_url = latest_file_url.replace('/iamsrijit/Nepse/blob/main/', '/')
+    latest_file_url = latest_file_url.replace('/iamsrijit0/Nepse/blob/main/', '/')
 
     # Read data from the latest file
     secondss = pd.read_csv(latest_file_url)
@@ -431,10 +431,10 @@ try:
     }
     
     # Debug print
-    print(f"Attempting upload to: https://api.github.com/repos/iamsrijit/Nepse/contents/{file_name}")
+    print(f"Attempting upload to: https://api.github.com/repos/iamsrijit0/Nepse/contents/{file_name}")
     
     response = requests.put(
-        f'https://api.github.com/repos/iamsrijit/Nepse/contents/{file_name}',
+        f'https://api.github.com/repos/iamsrijit0/Nepse/contents/{file_name}',
         headers=headers,
         json=payload
     )
@@ -495,10 +495,10 @@ except Exception as e:
 #     csv_data_base64 = base64.b64encode(csv_data.encode()).decode()
 #     file_name = f'espen_{datetime.today().strftime("%Y-%m-%d")}.csv'
 #     file_path = file_name
-#     upload_url = f'https://api.github.com/repos/iamsrijit/Nepse/contents/{file_path}'
+#     upload_url = f'https://api.github.com/repos/iamsrijit0/Nepse/contents/{file_path}'
     
 #     # Define the GitHub repository URL
-#     repo_url = 'https://github.com/iamsrijit/Nepse'
+#     repo_url = 'https://github.com/iamsrijit0/Nepse'
 
 #     # # Define the file name with today's date
 #     # # file_name = f'espen_{datetime.today().strftime("%Y-%m-%d")}.csv'
@@ -508,7 +508,7 @@ except Exception as e:
 #     # file_path = file_name
 
 #     # # Define the API URL for uploading files to GitHub
-#     #  upload_url = f'https://api.github.com/repos/iamsrijit/Nepse/contents{file_path}'
+#     #  upload_url = f'https://api.github.com/repos/iamsrijit0/Nepse/contents{file_path}'
 #     # # cHANGED ABOVE LINE
 
 #     # # upload_url = f"https://api.github.com/repos/{owner}/{repo}/contents/{file_path}"
@@ -648,7 +648,7 @@ try:
     csv_data_base64 = base64.b64encode(csv_data.encode()).decode()
 
     # Define the GitHub repository URL
-    repo_url = 'https://github.com/iamsrijit/Nepse'
+    repo_url = 'https://github.com/iamsrijit0/Nepse'
 
     # Define the file name with today's date
     file_name = f'EMA_Cross_for_{datetime.today().strftime("%Y-%m-%d")}.csv'
@@ -660,7 +660,7 @@ try:
     file_path = f'/{file_name}'
 
     # Define the API URL for file content and upload
-    upload_url = f'https://api.github.com/repos/iamsrijit/Nepse/contents{file_path}'
+    upload_url = f'https://api.github.com/repos/iamsrijit0/Nepse/contents{file_path}'
 
     # Prepare the headers with the authorization token
     headers = {
@@ -719,7 +719,7 @@ import re
 # Clone repository
 repo_dir = './nepse_repo'
 if not os.path.exists(repo_dir):
-    Repo.clone_from('https://github.com/iamsrijit/Nepse.git', repo_dir)
+    Repo.clone_from('https://github.com/iamsrijit0/Nepse.git', repo_dir)
 repo = Repo(repo_dir)
 
 # Get all files and define patterns
@@ -747,7 +747,7 @@ try:
     repo.git.add(update=True)
     repo.index.commit('Remove old data files')
     origin = repo.remote(name='origin')
-    origin.set_url(f'https://x-access-token:{os.getenv("GH_TOKEN")}@github.com/iamsrijit/Nepse.git')
+    origin.set_url(f'https://x-access-token:{os.getenv("GH_TOKEN")}@github.com/iamsrijit0/Nepse.git')
     origin.push()
 except Exception as e:
     print(f"Error pushing changes: {e}")
@@ -787,12 +787,12 @@ except Exception as e:
 #     return max(matched_files) if matched_files else None
 
 # # Replace with your GitHub repository URL
-# # repo_url = 'https://github.com/iamsrijit/Nepse.git'
+# # repo_url = 'https://github.com/iamsrijit0/Nepse.git'
 # # repo_dir = '/content/nepse_new'  # Directory to clone the repository
 
 
 # # Replace with your GitHub repository URL
-# repo_url = 'https://github.com/iamsrijit/Nepse.git'
+# repo_url = 'https://github.com/iamsrijit0/Nepse.git'
 # repo_dir = './nepse_repo'  # Use a writable directory instead of '/content/nepse_new'
 
 # # Clone the repository
@@ -839,11 +839,11 @@ except Exception as e:
 # try:
 #     repo.index.commit('Deleted old EMA_Cross_for_ and espen_ files')
 #     origin = repo.remote(name='origin')
-#     # origin.set_url(f'https://x-access-token:{os.getenv("GH_TOKEN")}@github.com/iamsrijit/Nepse.git')
+#     # origin.set_url(f'https://x-access-token:{os.getenv("GH_TOKEN")}@github.com/iamsrijit0/Nepse.git')
 
-#     # origin.set_url('https://iamsrijit:{token}@github.com/iamsrijit/Nepse.git')
+#     # origin.set_url('https://iamsrijit0:{token}@github.com/iamsrijit0/Nepse.git')
 #     # Correct Git remote URL with token
-#     origin.set_url(f'https://x-access-token:{os.getenv("GH_TOKEN")}@github.com/iamsrijit/Nepse.git')
+#     origin.set_url(f'https://x-access-token:{os.getenv("GH_TOKEN")}@github.com/iamsrijit0/Nepse.git')
 #     origin.push()
 #     print("Pushed changes to GitHub.")
 # except Exception as e:
