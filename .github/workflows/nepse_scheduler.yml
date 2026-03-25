@@ -2,63 +2,50 @@ name: NEPSE Daily Automation
 
 on:
   schedule:
-    - cron: '15 10 * * 0-4'   # 4 PM Nepal Time (10:15 UTC), Sun-Thu
+    # - cron: '30 14 * * *'  # Runs every day at 8:15 PM Nepal Time (14:30 UTC)
+    - cron: '15 10 * * 0-4'  # 4 PM Nepal Time (10:15 UTC), Sun-Thu
   workflow_dispatch:
-
-permissions:
-  contents: write   # 🔥 REQUIRED to push
 
 jobs:
   run-script:
     runs-on: ubuntu-latest
+    env:
+      TZ: Asia/Kathmandu
 
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
+          python-version: '3.10'
 
       - name: Install dependencies
         run: |
-          pip install nepse-scraper pandas numpy requests beautifulsoup4 xlsxwriter joblib matplotlib
+          pip install nepse-scraper pandas requests beautifulsoup4 gitpython numpy xlsxwriter
 
       - name: Run automation script
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: python nepse_autp.py
 
-      - name: Commit changes
+      - name: Commit and push changes
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add *.csv
+          git diff-index --quiet HEAD || git commit -m "Auto-update: $(date +'%Y-%m-%d')"
+          git remote set-url origin https://x-access-token:$GH_TOKEN@github.com/${{ github.repository }}
+          git push origin main
 
-          git add *.csv 2>/dev/null || true
-
-          if ! git diff --cached --quiet; then
-            git commit -m "Auto-update: $(date +'%Y-%m-%d')"
-            git push
-          else
-            echo "No changes to commit"
-          fi
-
-      - name: Cleanup old files (keep latest 3)
+      - name: Cleanup old files
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
           for prefix in espen EMA_Cross_for; do
-            files=$(ls ${prefix}*.csv 2>/dev/null | sort -r | tail -n +4)
-            if [ -n "$files" ]; then
-              git rm -q $files
-            fi
+            files=$(git ls-files -- "$prefix*.csv" | sort -r | awk 'NR>3')
+            [ -n "$files" ] && git rm -q $files
           done
-
-          if ! git diff --cached --quiet; then
-            git commit -m "Auto-cleanup old files"
-            git push
-          else
-            echo "No old files to clean"
-          fi
+          git diff-index --quiet HEAD || git commit -m "Auto-cleanup"
+          git push origin main
