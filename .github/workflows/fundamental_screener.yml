@@ -7,9 +7,9 @@
 name: NEPSE Fundamental Screener
 
 on:
-  # Run every weekday at 16:30 Nepal time (11:00 UTC, after NEPSE close)
+  # Run every Saturday at 08:15 Nepal time (02:30 UTC — Nepal is UTC+5:45)
   schedule:
-    - cron: "00 11 * * 1-5"
+    - cron: "30 02 * * 6"
 
   # Allow manual trigger from the Actions tab
   workflow_dispatch:
