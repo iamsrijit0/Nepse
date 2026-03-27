@@ -19,7 +19,7 @@ from joblib import Parallel, delayed
 # ── Constants ────────────────────────────────────────────────────────────────
 STANDARD_COLS   = ['Symbol', 'Date', 'Open', 'High', 'Low', 'Close',
                    'Percent Change', 'Volume', '52High', '52Low']
-GITHUB_REPO     = 'iamsrijit/Nepse'
+GITHUB_REPO     = 'iamsrijit0/Nepse'
 GH_TOKEN        = os.getenv("GH_TOKEN")
 
 # ── Helper ───────────────────────────────────────────────────────────────────
