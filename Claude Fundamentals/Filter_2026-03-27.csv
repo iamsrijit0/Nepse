@@ -1,0 +1,8 @@
+Ticker,Stock Name,Sector,Today's Price,EPS (Trailing),P/E Ratio,P/B Ratio,DE,ROE,ROA,Net Profit % Change,Total Revenue % Change,Annualized EPS % Change,Book Value per Share % Change,Monthly Change (%),3-Month Change (%),Yearly Change (%),score,Tier
+KBL,Kumari Bank,Commercial Banks,232.00,20.74,11.18,1.53,10.43,13.72,1.2,+157.45%,+106.86%,+28.73%,+4.10%,+27.47%,+30.04%,+12.62%,21,Strong
+NTC,Nepal Doorsanchar Company,Telecom,889.00,46.27,19.21,1.65,0.39,8.58,6.17,+214.26%,+103.01%,+57.13%,+6.67%,+5.18%,+4.38%,+1.49%,21,Strong
+MBL,Machhapuchhre Bank,Commercial Banks,266.60,16.73,15.93,1.65,11.19,10.35,0.85,+141.93%,+96.61%,+20.97%,+4.54%,+18.54%,+23.31%,+23.57%,20,Strong
+DDBL,Deprosc Laghubitta,Microcredit,885.00,47.41,18.67,4.0,7.32,21.44,2.58,+119.03%,+95.97%,+9.51%,-0.04%,+6.63%,+12.27%,+24.57%,19,Good
+API,Api Power,Hydro Power,344.40,14.03,24.55,2.93,1.03,11.93,5.89,+62.21%,+78.15%,-18.89%,+2.48%,+18.35%,+25.67%,+31.66%,18,Good
+BHL,Balephi Hydropower Limited,Hydro Power,257.70,12.48,20.65,3.19,1.94,15.44,5.26,+83.29%,+83.19%,-8.36%,+3.63%,+30.68%,+45.59%,-23.28%,18,Good
+MNBBL,Muktinath Bikas Bank,Development Bank,400.10,16.8,23.82,2.64,9.93,11.1,1.02,+198.98%,+91.14%,+31.68%,-10.98%,+13.02%,+15.30%,+23.75%,18,Good
