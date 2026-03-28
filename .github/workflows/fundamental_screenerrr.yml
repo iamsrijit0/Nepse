@@ -7,11 +7,11 @@
 name: NEPSE Fundamental Screener & Filter
 
 on:
-  # Run every Saturday at 08:15 Nepal time (02:30 UTC — Nepal is UTC+5:45)
+  # Run every Saturday at 10:00 AM Nepal time (04:15 UTC)
   schedule:
-    - cron: "30 02 * * 6"
+    - cron: "15 4 * * 6"
 
-  # Allow manual trigger from the Actions tab
+  # Allow manual trigger
   workflow_dispatch:
 
 jobs:
