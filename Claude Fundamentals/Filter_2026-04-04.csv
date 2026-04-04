@@ -1,0 +1,8 @@
+Ticker,Stock Name,Sector,Today's Price,EPS (Trailing),P/E Ratio,P/B Ratio,DE,ROE,ROA,Net Profit % Change,Total Revenue % Change,Annualized EPS % Change,Book Value per Share % Change,Monthly Change (%),3-Month Change (%),Yearly Change (%),score,Tier
+KBL,Kumari Bank,Commercial Banks,222.00,20.74,10.7,1.47,10.43,13.72,1.2,+157.45%,+106.86%,+28.73%,+4.10%,+11.11%,+24.09%,+4.88%,21,Strong
+MBL,Machhapuchhre Bank,Commercial Banks,248.00,16.73,14.82,1.53,11.19,10.35,0.85,+141.93%,+96.61%,+20.97%,+4.54%,+5.00%,+11.71%,+8.85%,21,Strong
+NESDO,NESDO Sambridha Laghubitta Bittiye Sanstha Limited,Microcredit,"1,585.00",63.99,24.77,5.87,4.2,23.71,4.56,+185.68%,+100.69%,+42.84%,-0.92%,+2.59%,+6.03%,-14.21%,20,Strong
+NTC,Nepal Doorsanchar Company,Telecom,866.00,46.27,18.72,1.61,0.39,8.58,6.17,+214.26%,+103.01%,+57.13%,+6.67%,-0.69%,-0.23%,-4.03%,19,Good
+BHL,Balephi Hydropower Limited,Hydro Power,219.80,12.48,17.61,2.72,1.94,15.44,5.26,+83.29%,+83.19%,-8.36%,+3.63%,+7.27%,+24.18%,-31.10%,18,Good
+MNBBL,Muktinath Bikas Bank,Development Bank,374.90,16.8,22.32,2.48,9.93,11.1,1.02,+198.98%,+91.14%,+31.68%,-10.98%,+1.05%,+8.35%,+3.06%,18,Good
+PPCL,Panchthar Power Company Ltd.,Hydro Power,392.50,18.8,20.87,3.96,2.05,18.95,6.21,+75.59%,+64.89%,-12.21%,+3.31%,+1.29%,+11.98%,+23.64%,18,Good
