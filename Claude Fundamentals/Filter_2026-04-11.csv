@@ -1,7 +1,0 @@
-Ticker,Stock Name,Sector,Today's Price,EPS (Trailing),P/E Ratio,P/B Ratio,DE,ROE,ROA,Net Profit % Change,Total Revenue % Change,Annualized EPS % Change,Book Value per Share % Change,Monthly Change (%),3-Month Change (%),Yearly Change (%),score,Tier
-KBL,Kumari Bank,Commercial Banks,230.80,20.74,11.13,1.53,10.43,13.72,1.2,+157.45%,+106.86%,+28.73%,+4.10%,+7.82%,+29.95%,+11.48%,21,Strong
-MBL,Machhapuchhre Bank,Commercial Banks,252.50,16.73,15.09,1.56,11.19,10.35,0.85,+141.93%,+96.61%,+20.97%,+4.54%,+0.94%,+13.31%,+20.13%,20,Strong
-NTC,Nepal Doorsanchar Company,Telecom,880.00,46.27,19.02,1.63,0.39,8.58,6.17,+214.26%,+103.01%,+57.13%,+6.67%,-0.02%,+3.34%,+0.96%,20,Strong
-DDBL,Deprosc Laghubitta,Microcredit,846.10,47.41,17.85,3.83,7.32,21.44,2.58,+119.03%,+95.97%,+9.51%,-0.04%,-6.37%,+3.64%,+21.26%,19,Good
-BHL,Balephi Hydropower Limited,Hydro Power,230.00,12.48,18.43,2.84,1.94,15.44,5.26,+83.29%,+83.19%,-8.36%,+3.63%,+4.31%,+30.63%,-18.78%,18,Good
-SAHAS,Sahas Urja Limited,Hydro Power,622.10,39.57,15.72,3.64,1.41,23.18,9.6,+82.83%,+84.39%,-24.45%,-13.29%,+0.46%,+14.56%,+52.53%,18,Good
