@@ -1,8 +1,0 @@
-Ticker,Stock Name,Sector,Today's Price,EPS (Trailing),P/E Ratio,P/B Ratio,DE,ROE,ROA,Net Profit % Change,Total Revenue % Change,Annualized EPS % Change,Book Value per Share % Change,Monthly Change (%),3-Month Change (%),Yearly Change (%),score,Tier
-GBBL,Garima Bikas Bank,Development Bank,419.00,28.04,14.94,2.36,9.59,15.82,1.49,+61.10%,+34.12%,+20.82%,+5.78%,+4.21%,+1.69%,+4.43%,20,Strong
-GILB,Global IME Laghubitta Bittiya Sanstha,Microcredit,"1,070.00",45.16,23.69,4.98,7.08,21.03,2.6,+107.35%,+50.08%,+38.23%,+8.83%,-2.07%,+0.93%,-17.22%,20,Strong
-NBL,Nepal Bank,Commercial Banks,269.89,25.34,10.65,0.99,10.25,9.29,0.83,+114.05%,+56.08%,+42.70%,+3.95%,+1.32%,+2.87%,-6.07%,20,Strong
-NTC,Nepal Doorsanchar Company,Telecom,863.90,46.47,18.59,1.57,0.36,8.44,6.18,+50.63%,+50.07%,+0.42%,+2.11%,+1.77%,-1.49%,+1.18%,19,Good
-MBL,Machhapuchhre Bank,Commercial Banks,255.00,18.3,13.94,1.52,9.69,10.89,1.02,+64.03%,+47.90%,+9.36%,+3.97%,+3.01%,+3.27%,+3.59%,19,Good
-JBBL,Jyoti Bikas Bank,Development Bank,340.00,22.88,14.86,1.99,9.37,13.38,1.29,+59.81%,+39.14%,+19.86%,+4.61%,+2.39%,-2.75%,-4.57%,18,Good
-NMFBS,National Microfinance Bittiya Sanstha Ltd.,Microcredit,"1,101.40",51.59,21.35,4.24,7.0,19.88,2.48,+60.53%,+49.38%,+7.02%,+5.76%,-1.25%,+1.19%,-8.34%,18,Good
