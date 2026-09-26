@@ -863,51 +863,32 @@ github_put(
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# STEP 6 – CREATE MONTHLY DATA
+# ════════════════════════════════════════════════════════════════════════════
+# STEP 6 – CREATE COMPLETED MONTHLY DATA
 # ════════════════════════════════════════════════════════════════════════════
 
-print(
-    "\nCreating MONTHLY OHLC data ..."
-)
-
+print("\nCreating COMPLETED MONTHLY OHLC data ...")
 
 monthly_source = finall_df.copy()
-
 
 monthly_source['Date'] = pd.to_datetime(
     monthly_source['Date'],
     errors='coerce'
 )
 
-
-for col in [
-    'Open',
-    'High',
-    'Low',
-    'Close',
-    'Volume'
-]:
-
+# Numeric conversion
+for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
     monthly_source[col] = pd.to_numeric(
-
         monthly_source[col]
         .astype(str)
         .str.replace(',', '')
         .replace('-', np.nan),
-
         errors='coerce'
-
     )
 
-
 monthly_source = monthly_source.dropna(
-    subset=[
-        'Symbol',
-        'Date',
-        'Close'
-    ]
+    subset=['Symbol', 'Date', 'Close']
 )
-
 
 monthly_source = monthly_source.sort_values(
     ['Symbol', 'Date']
@@ -915,24 +896,37 @@ monthly_source = monthly_source.sort_values(
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# BUILD MONTHLY OHLCV
+# IMPORTANT:
+# REMOVE THE CURRENT INCOMPLETE MONTH
+# ════════════════════════════════════════════════════════════════════════════
+
+today = pd.Timestamp.today().normalize()
+
+current_year = today.year
+current_month = today.month
+
+print(
+    f"Current date: {today.strftime('%Y-%m-%d')}"
+)
+
+print(
+    "Current incomplete month will NOT be used "
+    "for monthly EMA calculations."
+)
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# BUILD COMPLETED MONTHLY OHLCV
 # ════════════════════════════════════════════════════════════════════════════
 
 def make_monthly_data(group):
 
-    group = group.sort_values(
-        'Date'
-    ).copy()
+    group = group.sort_values('Date').copy()
 
+    group = group.set_index('Date')
 
-    group = group.set_index(
-        'Date'
-    )
-
-
-    monthly = group.resample(
-        'ME'
-    ).agg({
+    # Month-end aggregation
+    monthly = group.resample('ME').agg({
 
         'Open': 'first',
         'High': 'max',
@@ -942,13 +936,11 @@ def make_monthly_data(group):
 
     })
 
+    monthly['Symbol'] = group['Symbol'].iloc[0]
 
-    monthly['Symbol'] = (
-        group['Symbol'].iloc[0]
-    )
+    monthly = monthly.reset_index()
 
-
-    return monthly.reset_index()
+    return monthly
 
 
 monthly_results = Parallel(
@@ -967,13 +959,25 @@ monthly_df = pd.concat(
 )
 
 
+# ════════════════════════════════════════════════════════════════════════════
+# REMOVE CURRENT MONTH
+# ════════════════════════════════════════════════════════════════════════════
+
+monthly_df = monthly_df[
+    ~(
+        (monthly_df['Date'].dt.year == current_year) &
+        (monthly_df['Date'].dt.month == current_month)
+    )
+].copy()
+
+
 monthly_df = monthly_df.sort_values(
     ['Symbol', 'Date']
 ).reset_index(drop=True)
 
 
 print(
-    f"Monthly records created: "
+    f"Completed monthly records: "
     f"{len(monthly_df)}"
 )
 
@@ -987,10 +991,7 @@ print(
 )
 
 
-def process_monthly_symbol(
-    symbol,
-    group
-):
+def process_monthly_symbol(symbol, group):
 
     group = group.copy()
 
@@ -999,43 +1000,80 @@ def process_monthly_symbol(
     ).reset_index(drop=True)
 
 
-    # EMA 10
-    group['EMA_10'] = (
+    # ------------------------------------------------------------
+    # IMPORTANT:
+    # Need sufficient monthly history
+    # ------------------------------------------------------------
 
+    if len(group) < 25:
+
+        return pd.DataFrame()
+
+
+    # ------------------------------------------------------------
+    # EMA 10
+    # ------------------------------------------------------------
+
+    group['EMA_10'] = (
         group['Close']
         .ewm(
             span=10,
-            adjust=False
+            adjust=False,
+            min_periods=10
         )
         .mean()
-
     )
 
 
+    # ------------------------------------------------------------
     # EMA 25
-    group['EMA_25'] = (
+    # ------------------------------------------------------------
 
+    group['EMA_25'] = (
         group['Close']
         .ewm(
             span=25,
-            adjust=False
+            adjust=False,
+            min_periods=25
         )
         .mean()
-
     )
 
 
-    # EMA difference
-    group['EMA_Difference'] = (
+    # ------------------------------------------------------------
+    # Previous month's EMA values
+    # ------------------------------------------------------------
 
+    group['Previous_EMA_10'] = (
+        group['EMA_10'].shift(1)
+    )
+
+    group['Previous_EMA_25'] = (
+        group['EMA_25'].shift(1)
+    )
+
+
+    # ------------------------------------------------------------
+    # EMA difference
+    # ------------------------------------------------------------
+
+    group['EMA_Difference'] = (
         group['EMA_10']
         -
         group['EMA_25']
-
     )
 
 
-    # Bullish monthly crossover
+    # ------------------------------------------------------------
+    # Bullish crossover
+    #
+    # Previous month:
+    # EMA10 <= EMA25
+    #
+    # Current completed month:
+    # EMA10 > EMA25
+    # ------------------------------------------------------------
+
     group['Monthly_Crossover'] = (
 
         (group['EMA_10'] > group['EMA_25'])
@@ -1043,15 +1081,18 @@ def process_monthly_symbol(
         &
 
         (
-            group['EMA_10'].shift(1)
+            group['Previous_EMA_10']
             <=
-            group['EMA_25'].shift(1)
+            group['Previous_EMA_25']
         )
 
     )
 
 
+    # ------------------------------------------------------------
     # Percentage gap
+    # ------------------------------------------------------------
+
     group['EMA_Gap_%'] = (
 
         (
@@ -1070,6 +1111,10 @@ def process_monthly_symbol(
 
     )
 
+
+    # ------------------------------------------------------------
+    # Keep actual bullish crossovers
+    # ------------------------------------------------------------
 
     valid = group[
         group['Monthly_Crossover']
@@ -1099,6 +1144,10 @@ monthly_results = [
 ]
 
 
+# ════════════════════════════════════════════════════════════════════════════
+# COMBINE RESULTS
+# ════════════════════════════════════════════════════════════════════════════
+
 if monthly_results:
 
     monthly_crossovers = pd.concat(
@@ -1106,9 +1155,7 @@ if monthly_results:
         ignore_index=True
     )
 
-
     monthly_crossovers = (
-
         monthly_crossovers
         .sort_values(
             'Date',
@@ -1118,7 +1165,6 @@ if monthly_results:
             'Symbol'
         )
         .reset_index(drop=True)
-
     )
 
 else:
@@ -1135,6 +1181,8 @@ else:
             'Volume',
             'EMA_10',
             'EMA_25',
+            'Previous_EMA_10',
+            'Previous_EMA_25',
             'EMA_Difference',
             'Monthly_Crossover',
             'EMA_Gap_%'
@@ -1150,61 +1198,121 @@ else:
 if not monthly_crossovers.empty:
 
     monthly_crossovers['Date'] = (
-
         monthly_crossovers['Date']
         .dt.strftime('%Y-%m-%d')
-
     )
 
+    numeric_columns = [
 
-    for col in [
+        'Open',
+        'High',
+        'Low',
+        'Close',
+        'Volume',
         'EMA_10',
         'EMA_25',
+        'Previous_EMA_10',
+        'Previous_EMA_25',
         'EMA_Difference',
-        'EMA_Gap_%',
-        'Close'
+        'EMA_Gap_%'
+
+    ]
+
+    for col in numeric_columns:
+
+        if col in monthly_crossovers.columns:
+
+            monthly_crossovers[col] = (
+                pd.to_numeric(
+                    monthly_crossovers[col],
+                    errors='coerce'
+                )
+            )
+
+
+    # Round prices/EMA values
+    for col in [
+        'Open',
+        'High',
+        'Low',
+        'Close',
+        'EMA_10',
+        'EMA_25',
+        'Previous_EMA_10',
+        'Previous_EMA_25',
+        'EMA_Difference',
+        'EMA_Gap_%'
     ]:
 
-        monthly_crossovers[col] = (
-            monthly_crossovers[col]
-            .round(2)
-        )
+        if col in monthly_crossovers.columns:
 
-
-    monthly_crossovers['Volume'] = (
-        monthly_crossovers['Volume']
-        .round(0)
-    )
+            monthly_crossovers[col] = (
+                monthly_crossovers[col]
+                .round(2)
+            )
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# DISPLAY MONTHLY SIGNALS
+# FINAL COLUMN ORDER
+# ════════════════════════════════════════════════════════════════════════════
+
+monthly_output_columns = [
+
+    'Symbol',
+    'Date',
+    'Open',
+    'High',
+    'Low',
+    'Close',
+    'Volume',
+    'EMA_10',
+    'EMA_25',
+    'Previous_EMA_10',
+    'Previous_EMA_25',
+    'EMA_Difference',
+    'Monthly_Crossover',
+    'EMA_Gap_%'
+
+]
+
+
+monthly_crossovers = monthly_crossovers[
+    [
+        col
+        for col in monthly_output_columns
+        if col in monthly_crossovers.columns
+    ]
+]
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# DISPLAY RESULTS
 # ════════════════════════════════════════════════════════════════════════════
 
 print(
     "\n" +
-    "=" * 80
+    "=" * 100
 )
 
 print(
-    "LATEST MONTHLY EMA 10 / EMA 25 CROSSOVERS"
+    "CONFIRMED MONTHLY EMA 10 / EMA 25 BULLISH CROSSOVERS"
 )
 
 print(
-    "=" * 80
+    "=" * 100
 )
 
 
 if monthly_crossovers.empty:
 
     print(
-        "No monthly EMA 10 / EMA 25 crossover found."
+        "No confirmed monthly EMA 10 / EMA 25 "
+        "bullish crossover found."
     )
 
 else:
 
     print(
-
         monthly_crossovers[
             [
                 'Symbol',
@@ -1212,12 +1320,13 @@ else:
                 'Close',
                 'EMA_10',
                 'EMA_25',
+                'Previous_EMA_10',
+                'Previous_EMA_25',
                 'EMA_Difference',
                 'EMA_Gap_%'
             ]
         ]
         .to_string(index=False)
-
     )
 
 
@@ -1237,35 +1346,13 @@ github_put(
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# STEP 8 – CLEAN OLD EMA FILES
+# DELETE OLD MONTHLY EMA FILES
 # ════════════════════════════════════════════════════════════════════════════
 
-print(
-    "\nCleaning up old EMA files ..."
-)
-
-
-# Keep latest DAILY EMA file
-delete_old_github_files(
-    'EMA_Cross_for_',
-    keep=1
-)
-
-
-# Keep latest MONTHLY EMA file
 delete_old_github_files(
     'Monthly_EMA_Cross_for_',
     keep=1
 )
-
-
-# Keep latest ESPEN file
-delete_old_github_files(
-    'espen_',
-    keep=1
-)
-
-
 # ════════════════════════════════════════════════════════════════════════════
 # STEP 9 – REMOVE OLD JUNK CSV FILES
 # ════════════════════════════════════════════════════════════════════════════
