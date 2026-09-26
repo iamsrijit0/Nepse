@@ -1,4 +1,4 @@
-
+```python
 import subprocess
 import sys
 import os
@@ -7,7 +7,6 @@ import base64
 import re
 import pandas as pd
 import numpy as np
-from datetime import datetime
 from bs4 import BeautifulSoup
 from zoneinfo import ZoneInfo
 
@@ -26,7 +25,7 @@ packages = [
     "beautifulsoup4"
 ]
 
-print("Checking required packages ...")
+print("Checking required packages...")
 
 subprocess.check_call(
     [sys.executable, "-m", "pip", "install"] + packages,
@@ -38,7 +37,7 @@ from joblib import Parallel, delayed
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# CONSTANTS
+# SETTINGS
 # ════════════════════════════════════════════════════════════════════════════
 
 STANDARD_COLS = [
@@ -55,9 +54,10 @@ STANDARD_COLS = [
 ]
 
 GITHUB_REPO = 'iamsrijit0/Nepse'
+
 GH_TOKEN = os.getenv("GH_TOKEN")
 
-# Minimum monthly history required before calculating EMA 10/25
+# Minimum number of COMPLETED monthly candles required
 MIN_MONTHS_REQUIRED = 36
 
 
@@ -68,7 +68,7 @@ MIN_MONTHS_REQUIRED = 36
 if not GH_TOKEN:
 
     print("\nERROR: GH_TOKEN environment variable is not set.")
-    print("Please set your GitHub token before running this script.")
+
     raise SystemExit(1)
 
 
@@ -76,66 +76,70 @@ if not GH_TOKEN:
 # HELPER FUNCTIONS
 # ════════════════════════════════════════════════════════════════════════════
 
-def to_float(x):
+def to_float(value):
 
     try:
-        if x is None:
+
+        if value is None:
             return 0.0
 
-        if isinstance(x, str):
-            x = x.replace(',', '').strip()
+        if isinstance(value, str):
+            value = value.replace(',', '').strip()
 
-        return float(x)
+        return float(value)
 
     except (TypeError, ValueError):
 
         return 0.0
 
 
-def format_date(dt):
-
-    """Return M/D/YYYY with no leading zeros."""
-
-    return f"{dt.month}/{dt.day}/{dt.year}"
-
-
 def clean_numeric_series(series):
 
     return pd.to_numeric(
+
         series
         .astype(str)
         .str.replace(',', '', regex=False)
         .replace('-', np.nan),
+
         errors='coerce'
+
     )
 
 
+def format_date(dt):
+
+    return f"{dt.month}/{dt.day}/{dt.year}"
+
+
 # ════════════════════════════════════════════════════════════════════════════
-# STEP 1 – FETCH TODAY'S PRICE FROM NEPSE API
+# STEP 1
+# FETCH TODAY'S NEPSE DATA
 # ════════════════════════════════════════════════════════════════════════════
 
-print("\n" + "=" * 80)
+print("\n" + "=" * 90)
 print("STEP 1 - FETCHING TODAY'S NEPSE DATA")
-print("=" * 80)
+print("=" * 90)
 
-print("Fetching today's price from NEPSE ...")
 
 request_obj = Nepse_scraper(
     verify_ssl=False
 )
 
+
 today_price = request_obj.get_today_price()
 
 
-content_data = (
+if isinstance(today_price, dict):
 
-    today_price.get('content', [])
+    content_data = today_price.get(
+        'content',
+        []
+    )
 
-    if isinstance(today_price, dict)
+else:
 
-    else today_price
-
-)
+    content_data = today_price
 
 
 filtered_data = []
@@ -183,34 +187,50 @@ for item in content_data:
     )
 
 
-    pct_chg = round(
+    if open_price > 0:
 
-        (
-            (close_price - open_price)
-            / open_price
-            * 100
+        pct_change = (
+
+            (
+                close_price
+                -
+                open_price
+            )
+            /
+            open_price
+            *
+            100
+
         )
 
-        if open_price > 0
+    else:
 
-        else 0,
-
-        2
-
-    )
+        pct_change = 0
 
 
     filtered_data.append({
 
         'Symbol': symbol,
+
         'Date': date,
+
         'Open': open_price,
+
         'High': high_price,
+
         'Low': low_price,
+
         'Close': close_price,
-        'Percent Change': pct_chg,
+
+        'Percent Change': round(
+            pct_change,
+            2
+        ),
+
         'Volume': volume,
+
         '52High': high52,
+
         '52Low': low52
 
     })
@@ -224,7 +244,7 @@ first = pd.DataFrame(
 if first.empty:
 
     print(
-        "\nNo data available from NEPSE API today."
+        "ERROR: No NEPSE data returned."
     )
 
     raise SystemExit(1)
@@ -236,61 +256,58 @@ first['Date'] = pd.to_datetime(
 )
 
 
-# ════════════════════════════════════════════════════════════════════════════
-# LIVE 52 WEEK HIGH / LOW
-# ════════════════════════════════════════════════════════════════════════════
-
-live_52 = (
-
-    first
-    .dropna(subset=['Date'])
-    .sort_values(
-        'Date',
-        ascending=False
-    )
-    .drop_duplicates(
-        'Symbol'
-    )
-    .set_index(
-        'Symbol'
-    )[
-        ['52High', '52Low']
-    ]
-
+first = first.dropna(
+    subset=['Date']
 )
 
 
 print(
-    f"Today's NEPSE records: {len(first)}"
+    f"Today's records: {len(first):,}"
 )
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# STEP 2 – GET LATEST HISTORICAL ESPEN FILE
+# STEP 2
+# FIND LATEST ESPEN FILE
 # ════════════════════════════════════════════════════════════════════════════
 
-print("\n" + "=" * 80)
-print("STEP 2 - LOADING HISTORICAL ESPEN DATA")
-print("=" * 80)
+print("\n" + "=" * 90)
+print("STEP 2 - LOADING HISTORICAL DATA")
+print("=" * 90)
 
 
-def get_latest_espen_url(repo_url):
+def get_latest_espen_url():
+
+    repo_url = (
+
+        f'https://github.com/'
+        f'{GITHUB_REPO}/tree/main'
+
+    )
+
 
     response = requests.get(
+
         repo_url,
-        timeout=20
+
+        timeout=30
+
     )
+
 
     response.raise_for_status()
 
 
     soup = BeautifulSoup(
+
         response.content,
+
         'html.parser'
+
     )
 
 
-    file_urls = {}
+    files = {}
 
 
     for link in soup.find_all(
@@ -311,58 +328,52 @@ def get_latest_espen_url(repo_url):
 
         ):
 
-            date_match = re.search(
+            match = re.search(
 
-                r'(\d{4}-\d{2}-\d{2})',
+                r'espen_(\d{4}-\d{2}-\d{2})\.csv',
 
                 href
 
             )
 
 
-            if date_match:
+            if match:
 
-                file_date = (
-                    date_match.group(1)
+                file_date = match.group(1)
+
+                file_name = (
+                    f'espen_{file_date}.csv'
                 )
 
 
-                raw_url = (
+                files[file_date] = (
 
-                    f"https://raw.githubusercontent.com/"
-                    f"{GITHUB_REPO}/main/"
-                    f"{href.split('/')[-1]}"
+                    f'https://raw.githubusercontent.com/'
+                    f'{GITHUB_REPO}/main/'
+                    f'{file_name}'
 
                 )
 
 
-                file_urls[
-                    file_date
-                ] = raw_url
-
-
-    if not file_urls:
+    if not files:
 
         raise ValueError(
-            "No espen_ CSV files found in repository."
+            "No espen_ CSV file found in GitHub repository."
         )
 
 
-    latest = max(
-        file_urls.keys()
+    latest_date = max(
+        files.keys()
     )
 
 
     print(
-        f"Latest espen_ file date: {latest}"
-    )
-
-    print(
-        f"URL: {file_urls[latest]}"
+        f"Latest historical file: "
+        f"espen_{latest_date}.csv"
     )
 
 
-    return file_urls[latest]
+    return files[latest_date]
 
 
 secondss = pd.DataFrame()
@@ -370,12 +381,7 @@ secondss = pd.DataFrame()
 
 try:
 
-    latest_url = get_latest_espen_url(
-
-        f'https://github.com/'
-        f'{GITHUB_REPO}/tree/main'
-
-    )
+    latest_url = get_latest_espen_url()
 
 
     raw = pd.read_csv(
@@ -383,32 +389,16 @@ try:
     )
 
 
-    available = [
+    for col in STANDARD_COLS:
 
-        c
+        if col not in raw.columns:
 
-        for c in STANDARD_COLS
-
-        if c in raw.columns
-
-    ]
+            raw[col] = np.nan
 
 
     secondss = raw[
-        available
-    ].copy()
-
-
-    for col in STANDARD_COLS:
-
-        if col not in secondss.columns:
-
-            secondss[col] = np.nan
-
-
-    secondss = secondss[
         STANDARD_COLS
-    ]
+    ].copy()
 
 
     secondss['Date'] = pd.to_datetime(
@@ -420,35 +410,47 @@ try:
     )
 
 
+    secondss = secondss.dropna(
+
+        subset=['Date']
+
+    )
+
+
     print(
-        f"Historical data loaded: "
-        f"{len(secondss):,} rows"
+        f"Historical rows loaded: "
+        f"{len(secondss):,}"
     )
 
 
 except Exception as e:
 
     print(
-        f"Could not load historical data: {e}"
+        f"WARNING: Could not load historical data."
+    )
+
+    print(
+        str(e)
     )
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# STEP 3 – MERGE TODAY + HISTORY
+# STEP 3
+# MERGE TODAY WITH HISTORICAL DATA
 # ════════════════════════════════════════════════════════════════════════════
 
-print("\n" + "=" * 80)
-print("STEP 3 - MERGING TODAY + HISTORICAL DATA")
-print("=" * 80)
+print("\n" + "=" * 90)
+print("STEP 3 - MERGING HISTORICAL + TODAY")
+print("=" * 90)
 
 
-dfs = [
+frames = [
 
     df
 
     for df in [
-        first,
-        secondss
+        secondss,
+        first
     ]
 
     if not df.empty
@@ -456,10 +458,10 @@ dfs = [
 ]
 
 
-if not dfs:
+if not frames:
 
     print(
-        "No data available to process."
+        "ERROR: No data available."
     )
 
     raise SystemExit(1)
@@ -467,11 +469,9 @@ if not dfs:
 
 combined_df = pd.concat(
 
-    dfs,
+    frames,
 
-    ignore_index=True,
-
-    join='outer'
+    ignore_index=True
 
 )
 
@@ -485,96 +485,134 @@ combined_df['Date'] = pd.to_datetime(
 )
 
 
-combined_df.dropna(
+combined_df = combined_df.dropna(
 
-    subset=['Date'],
-
-    inplace=True
+    subset=[
+        'Symbol',
+        'Date'
+    ]
 
 )
 
 
-finall_df = pd.DataFrame()
+# ════════════════════════════════════════════════════════════════════════════
+# REMOVE DUPLICATE SYMBOL + DATE
+# ════════════════════════════════════════════════════════════════════════════
 
+combined_df = (
 
-for symbol, grp in combined_df.groupby(
-    'Symbol'
-):
+    combined_df
 
-    grp = (
+    .sort_values(
+        'Date'
+    )
 
-        grp
-        .sort_values(
-            'Date',
-            ascending=False
-        )
-        .drop_duplicates(
-            'Date',
-            keep='first'
-        )
+    .drop_duplicates(
+
+        subset=[
+            'Symbol',
+            'Date'
+        ],
+
+        keep='last'
 
     )
 
+)
 
-    # Use latest live 52-week values
+
+# ════════════════════════════════════════════════════════════════════════════
+# UPDATE LIVE 52 WEEK VALUES
+# ════════════════════════════════════════════════════════════════════════════
+
+live_52 = (
+
+    first
+
+    .drop_duplicates(
+        'Symbol',
+        keep='last'
+    )
+
+    .set_index(
+        'Symbol'
+    )
+
+)
+
+
+for symbol in combined_df['Symbol'].unique():
 
     if symbol in live_52.index:
 
-        grp['52High'] = live_52.loc[
+        mask = (
+            combined_df['Symbol']
+            == symbol
+        )
+
+
+        combined_df.loc[
+            mask,
+            '52High'
+        ] = live_52.loc[
             symbol,
             '52High'
         ]
 
-        grp['52Low'] = live_52.loc[
+
+        combined_df.loc[
+            mask,
+            '52Low'
+        ] = live_52.loc[
             symbol,
             '52Low'
         ]
 
 
-    finall_df = pd.concat(
+# ════════════════════════════════════════════════════════════════════════════
+# SORT HISTORICAL DATA
+# ════════════════════════════════════════════════════════════════════════════
 
-        [
-            finall_df,
-            grp
-        ],
+combined_df = combined_df.sort_values(
 
-        ignore_index=True
+    [
+        'Symbol',
+        'Date'
+    ]
 
-    )
+).reset_index(
+    drop=True
+)
 
 
-# Format date
+# ════════════════════════════════════════════════════════════════════════════
+# SAVE DATE AS ORIGINAL DISPLAY FORMAT
+# ════════════════════════════════════════════════════════════════════════════
 
-finall_df['Date'] = (
+combined_for_upload = combined_df.copy()
 
-    finall_df['Date']
+
+combined_for_upload['Date'] = (
+
+    combined_for_upload['Date']
     .apply(format_date)
 
 )
 
 
-# Ensure correct column order
-
-finall_df = finall_df[
+combined_for_upload = combined_for_upload[
     STANDARD_COLS
 ]
 
 
 print(
-    f"Combined historical dataset: "
-    f"{len(finall_df):,} rows"
-)
-
-
-print(
-    finall_df.head(10).to_string(
-        index=False
-    )
+    f"Total accumulated rows: "
+    f"{len(combined_for_upload):,}"
 )
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# GITHUB UPLOAD FUNCTION
+# GITHUB UPLOAD
 # ════════════════════════════════════════════════════════════════════════════
 
 def github_put(
@@ -587,11 +625,14 @@ def github_put(
     )
 
 
-    csv_b64 = base64.b64encode(
+    csv_content = df.to_csv(
+        index=False
+    )
 
-        df.to_csv(
-            index=False
-        ).encode()
+
+    encoded = base64.b64encode(
+
+        csv_content.encode()
 
     ).decode()
 
@@ -616,28 +657,25 @@ def github_put(
     }
 
 
-    # Check whether file already exists
-
-    r = requests.get(
+    existing = requests.get(
 
         url,
 
         headers=headers,
 
-        timeout=20
+        timeout=30
 
     )
 
 
-    sha = (
+    sha = None
 
-        r.json().get('sha')
 
-        if r.status_code == 200
+    if existing.status_code == 200:
 
-        else None
-
-    )
+        sha = existing.json().get(
+            'sha'
+        )
 
 
     payload = {
@@ -646,7 +684,7 @@ def github_put(
             f'Update {file_name}',
 
         'content':
-            csv_b64,
+            encoded,
 
         'branch':
             'main'
@@ -659,7 +697,7 @@ def github_put(
         payload['sha'] = sha
 
 
-    resp = requests.put(
+    response = requests.put(
 
         url,
 
@@ -672,23 +710,32 @@ def github_put(
     )
 
 
-    if resp.status_code in (200, 201):
+    if response.status_code in (
+        200,
+        201
+    ):
 
         print(
-            f"Uploaded '{file_name}' successfully."
+            f"SUCCESS: {file_name}"
         )
 
     else:
 
         print(
-            f"Upload failed "
-            f"({resp.status_code}): "
-            f"{resp.text}"
+            f"ERROR uploading {file_name}"
+        )
+
+        print(
+            response.status_code
+        )
+
+        print(
+            response.text
         )
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# DELETE OLD GITHUB FILES
+# DELETE OLD FILES
 # ════════════════════════════════════════════════════════════════════════════
 
 def delete_old_github_files(
@@ -707,7 +754,7 @@ def delete_old_github_files(
     }
 
 
-    list_url = (
+    url = (
 
         f'https://api.github.com/repos/'
         f'{GITHUB_REPO}/contents/'
@@ -715,129 +762,116 @@ def delete_old_github_files(
     )
 
 
-    r = requests.get(
+    response = requests.get(
 
-        list_url,
+        url,
 
         headers=headers,
 
-        timeout=20
+        timeout=30
 
     )
 
 
-    if r.status_code != 200:
+    if response.status_code != 200:
 
         print(
-
-            f"Could not list repo contents: "
-            f"{r.status_code}"
-
+            f"Could not list GitHub files: "
+            f"{response.status_code}"
         )
 
         return
 
 
-    all_files = r.json()
+    files = response.json()
 
 
-    matched = sorted(
+    matching = [
 
-        [
+        f
 
-            f
+        for f in files
 
-            for f in all_files
+        if (
 
-            if (
+            isinstance(f, dict)
 
-                isinstance(f, dict)
+            and
 
-                and
+            f.get(
+                'name',
+                ''
+            ).startswith(prefix)
 
-                f.get(
-                    'name',
-                    ''
-                ).startswith(prefix)
+            and
 
-                and
+            f.get(
+                'name',
+                ''
+            ).endswith('.csv')
 
-                f.get(
-                    'name',
-                    ''
-                ).endswith('.csv')
+        )
 
-            )
+    ]
 
-        ],
 
-        key=lambda f: f['name'],
+    matching.sort(
+
+        key=lambda x: x['name'],
 
         reverse=True
 
     )
 
 
-    to_delete = matched[
+    old_files = matching[
         keep:
     ]
 
 
-    for f in to_delete:
+    for file_info in old_files:
 
-        del_url = f['url']
+        delete_response = requests.delete(
 
-        sha = f['sha']
-
-
-        payload = {
-
-            'message':
-                f'Auto-cleanup: remove {f["name"]}',
-
-            'sha':
-                sha,
-
-            'branch':
-                'main'
-
-        }
-
-
-        dr = requests.delete(
-
-            del_url,
+            file_info['url'],
 
             headers=headers,
 
-            json=payload,
+            json={
 
-            timeout=20
+                'message':
+                    f'Cleanup {file_info["name"]}',
+
+                'sha':
+                    file_info['sha'],
+
+                'branch':
+                    'main'
+
+            },
+
+            timeout=30
 
         )
 
 
-        if dr.status_code == 200:
+        if delete_response.status_code == 200:
 
             print(
                 f"Deleted old file: "
-                f"{f['name']}"
+                f"{file_info['name']}"
             )
 
         else:
 
             print(
-
-                f"Failed to delete "
-                f"{f['name']}: "
-                f"{dr.status_code} "
-                f"{dr.text}"
-
+                f"Could not delete: "
+                f"{file_info['name']}"
             )
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# STEP 4 – GET NEPAL TODAY'S DATE
+# NEPAL DATE
 # ════════════════════════════════════════════════════════════════════════════
 
 nepal_now = pd.Timestamp.now(
@@ -846,9 +880,13 @@ nepal_now = pd.Timestamp.now(
 
 
 nepal_today = (
+
     nepal_now
+
     .normalize()
+
     .tz_localize(None)
+
 )
 
 
@@ -863,56 +901,52 @@ print(
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# STEP 5 – UPLOAD DAILY HISTORICAL FILE
+# STEP 4
+# UPLOAD ACCUMULATED HISTORY
 # ════════════════════════════════════════════════════════════════════════════
 
-daily_history_file = (
+historical_file = (
+
     f'espen_{today_str}.csv'
+
 )
 
 
 github_put(
 
-    daily_history_file,
+    historical_file,
 
-    finall_df
+    combined_for_upload
 
 )
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# STEP 6 – DAILY EMA 20 / EMA 50
+# STEP 5
+# DAILY EMA 20 / 50
 # ════════════════════════════════════════════════════════════════════════════
 
-print("\n" + "=" * 80)
-print("STEP 6 - DAILY EMA 20 / EMA 50 ANALYSIS")
-print("=" * 80)
+print("\n" + "=" * 90)
+print("STEP 5 - DAILY EMA 20 / EMA 50")
+print("=" * 90)
 
 
-daily_data = finall_df.copy()
+daily_data = combined_df.copy()
 
 
-daily_data['Date'] = pd.to_datetime(
+for col in [
+    'Open',
+    'High',
+    'Low',
+    'Close',
+    'Volume'
+]:
 
-    daily_data['Date'],
+    daily_data[col] = clean_numeric_series(
 
-    errors='coerce'
+        daily_data[col]
 
-)
-
-
-daily_data['Close'] = clean_numeric_series(
-
-    daily_data['Close']
-
-)
-
-
-daily_data['Volume'] = clean_numeric_series(
-
-    daily_data['Volume']
-
-)
+    )
 
 
 daily_data = daily_data.dropna(
@@ -926,38 +960,20 @@ daily_data = daily_data.dropna(
 )
 
 
-daily_data = daily_data.sort_values(
-
-    [
-        'Symbol',
-        'Date'
-    ]
-
-).reset_index(
-    drop=True
-)
-
-
-# ════════════════════════════════════════════════════════════════════════════
-# DAILY PROCESSING
-# ════════════════════════════════════════════════════════════════════════════
-
 def process_daily_symbol(
     symbol,
     group
 ):
 
-    group = group.copy()
+    group = (
 
+        group
+        .sort_values('Date')
+        .copy()
+        .reset_index(drop=True)
 
-    group = group.sort_values(
-        'Date'
-    ).reset_index(
-        drop=True
     )
 
-
-    # Need enough observations
 
     if len(group) < 50:
 
@@ -1047,7 +1063,7 @@ def process_daily_symbol(
     )
 
 
-    # 30-day average volume
+    # 30 day average volume
 
     group['30D_Avg_Volume'] = (
 
@@ -1156,11 +1172,11 @@ daily_results = Parallel(
     delayed(
         process_daily_symbol
     )(
-        sym,
-        grp
+        symbol,
+        group
     )
 
-    for sym, grp
+    for symbol, group
     in daily_data.groupby(
         'Symbol'
     )
@@ -1181,7 +1197,7 @@ daily_results = [
 
 if daily_results:
 
-    all_valid = pd.concat(
+    daily_crossovers = pd.concat(
 
         daily_results,
 
@@ -1192,14 +1208,17 @@ if daily_results:
 
     daily_crossovers = (
 
-        all_valid
+        daily_crossovers
+
         .sort_values(
             'Date',
             ascending=False
         )
+
         .drop_duplicates(
             'Symbol'
         )
+
         .reset_index(
             drop=True
         )
@@ -1211,27 +1230,15 @@ else:
     daily_crossovers = pd.DataFrame()
 
 
-# ════════════════════════════════════════════════════════════════════════════
-# DISPLAY DAILY SIGNALS
-# ════════════════════════════════════════════════════════════════════════════
-
 print(
-    "\n" + "=" * 100
-)
-
-print(
-    "LATEST DAILY EMA 20 / EMA 50 BULLISH CROSSOVERS"
-)
-
-print(
-    "=" * 100
+    "\nDAILY EMA CROSSOVERS:"
 )
 
 
 if daily_crossovers.empty:
 
     print(
-        "No daily EMA 20 / EMA 50 crossover found."
+        "No daily EMA crossover found."
     )
 
 else:
@@ -1254,11 +1261,7 @@ else:
     )
 
 
-# ════════════════════════════════════════════════════════════════════════════
-# UPLOAD DAILY EMA FILE
-# ════════════════════════════════════════════════════════════════════════════
-
-daily_file_name = (
+daily_file = (
 
     f'EMA_Cross_for_{today_str}.csv'
 
@@ -1267,7 +1270,7 @@ daily_file_name = (
 
 github_put(
 
-    daily_file_name,
+    daily_file,
 
     daily_crossovers
 
@@ -1275,34 +1278,24 @@ github_put(
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# STEP 7 – CREATE COMPLETED MONTHLY OHLCV DATA
+# STEP 6
+# CREATE MONTHLY DATA USING ONLY ACTUAL CSV DATES
 # ════════════════════════════════════════════════════════════════════════════
 
-print("\n" + "=" * 80)
-print("STEP 7 - CREATING COMPLETED MONTHLY OHLCV DATA")
-print("=" * 80)
+print("\n" + "=" * 90)
+print("STEP 6 - MONTHLY DATA FROM ACTUAL CSV TRADING DATES")
+print("=" * 90)
 
 
-monthly_source = finall_df.copy()
-
-
-monthly_source['Date'] = pd.to_datetime(
-
-    monthly_source['Date'],
-
-    errors='coerce'
-
-)
+monthly_source = combined_df.copy()
 
 
 for col in [
-
     'Open',
     'High',
     'Low',
     'Close',
     'Volume'
-
 ]:
 
     monthly_source[col] = clean_numeric_series(
@@ -1334,64 +1327,144 @@ monthly_source = monthly_source.sort_values(
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# CURRENT MONTH MUST NOT BE USED
+# IMPORTANT:
+#
+# We DO NOT use:
+#
+#     resample('ME')
+#
+# because that creates a calendar month-end date.
+#
+# Instead:
+#
+# 1. Group actual CSV rows by year/month.
+# 2. Aggregate those actual rows.
+# 3. Use the LAST ACTUAL DATE in the CSV as the monthly Date.
+#
+# Therefore a monthly Date can ONLY be a date that exists in the CSV.
 # ════════════════════════════════════════════════════════════════════════════
 
-print(
-    f"Current Nepal date: "
-    f"{nepal_today.strftime('%Y-%m-%d')}"
-)
 
-print(
-    "Current incomplete month will be excluded."
-)
+def make_monthly_data(
+    symbol,
+    group
+):
 
+    group = (
 
-# ════════════════════════════════════════════════════════════════════════════
-# MONTHLY OHLCV CREATION
-# ════════════════════════════════════════════════════════════════════════════
+        group
+        .sort_values('Date')
+        .copy()
 
-def make_monthly_data(group):
-
-    group = group.sort_values(
-        'Date'
-    ).copy()
-
-
-    symbol = group[
-        'Symbol'
-    ].iloc[0]
-
-
-    group = group.set_index(
-        'Date'
     )
 
 
-    monthly = group.resample(
-        'ME'
-    ).agg({
+    # ------------------------------------------------------------
+    # Remove current incomplete month
+    # ------------------------------------------------------------
 
-        'Open': 'first',
+    group = group[
 
-        'High': 'max',
+        ~(
 
-        'Low': 'min',
+            (group['Date'].dt.year
+             == nepal_today.year)
 
-        'Close': 'last',
+            &
 
-        'Volume': 'sum'
+            (group['Date'].dt.month
+             == nepal_today.month)
 
-    })
+        )
 
-
-    monthly['Symbol'] = symbol
-
-
-    monthly = monthly.reset_index()
+    ].copy()
 
 
-    return monthly
+    if group.empty:
+
+        return pd.DataFrame()
+
+
+    # ------------------------------------------------------------
+    # Create year/month grouping WITHOUT resample
+    # ------------------------------------------------------------
+
+    group['_Year'] = (
+        group['Date'].dt.year
+    )
+
+    group['_Month'] = (
+        group['Date'].dt.month
+    )
+
+
+    monthly_rows = []
+
+
+    for (
+        year,
+        month
+    ), month_group in group.groupby(
+
+        [
+            '_Year',
+            '_Month'
+        ],
+
+        sort=True
+
+    ):
+
+        month_group = month_group.sort_values(
+            'Date'
+        )
+
+
+        # ========================================================
+        # THIS IS THE CRITICAL PART
+        #
+        # monthly_date = LAST ACTUAL DATE IN CSV
+        #
+        # No artificial month-end date.
+        # ========================================================
+
+        actual_last_date = (
+
+            month_group['Date']
+            .iloc[-1]
+
+        )
+
+
+        monthly_rows.append({
+
+            'Symbol':
+                symbol,
+
+            'Date':
+                actual_last_date,
+
+            'Open':
+                month_group['Open'].iloc[0],
+
+            'High':
+                month_group['High'].max(),
+
+            'Low':
+                month_group['Low'].min(),
+
+            'Close':
+                month_group['Close'].iloc[-1],
+
+            'Volume':
+                month_group['Volume'].sum()
+
+        })
+
+
+    return pd.DataFrame(
+        monthly_rows
+    )
 
 
 monthly_results = Parallel(
@@ -1401,6 +1474,7 @@ monthly_results = Parallel(
     delayed(
         make_monthly_data
     )(
+        symbol,
         group
     )
 
@@ -1410,6 +1484,17 @@ monthly_results = Parallel(
     )
 
 )
+
+
+monthly_results = [
+
+    x
+
+    for x in monthly_results
+
+    if not x.empty
+
+]
 
 
 if monthly_results:
@@ -1427,36 +1512,19 @@ else:
     monthly_df = pd.DataFrame()
 
 
+# ════════════════════════════════════════════════════════════════════════════
+# SORT MONTHLY DATA
+# ════════════════════════════════════════════════════════════════════════════
+
 if monthly_df.empty:
 
     print(
-        "ERROR: Could not create monthly data."
+        "ERROR: No completed monthly data available."
     )
 
     monthly_crossovers = pd.DataFrame()
 
 else:
-
-    # ════════════════════════════════════════════════════════════════════════
-    # REMOVE CURRENT INCOMPLETE MONTH
-    # ════════════════════════════════════════════════════════════════════════
-
-    monthly_df = monthly_df[
-
-        ~(
-
-            (monthly_df['Date'].dt.year
-             == nepal_today.year)
-
-            &
-
-            (monthly_df['Date'].dt.month
-             == nepal_today.month)
-
-        )
-
-    ].copy()
-
 
     monthly_df = monthly_df.sort_values(
 
@@ -1470,19 +1538,107 @@ else:
     )
 
 
+    # ════════════════════════════════════════════════════════════════════════
+    # VERIFY EVERY MONTHLY DATE EXISTS IN ORIGINAL CSV
+    # ════════════════════════════════════════════════════════════════════════
+
+    actual_csv_dates = set(
+
+        monthly_source['Date']
+        .dt.normalize()
+        .unique()
+
+    )
+
+
+    monthly_dates = set(
+
+        monthly_df['Date']
+        .dt.normalize()
+        .unique()
+
+    )
+
+
+    invalid_dates = (
+
+        monthly_dates
+        -
+        actual_csv_dates
+
+    )
+
+
+    if invalid_dates:
+
+        print(
+            "\nERROR: Artificial monthly dates detected!"
+        )
+
+        print(
+            invalid_dates
+        )
+
+        raise SystemExit(1)
+
+
     print(
-        f"Completed monthly records: "
-        f"{len(monthly_df):,}"
+        "DATE VALIDATION PASSED:"
+    )
+
+    print(
+        "Every monthly Date exists "
+        "in the original CSV history."
     )
 
 
     # ════════════════════════════════════════════════════════════════════════
-    # STEP 8 – MONTHLY EMA 10 / EMA 25
+    # SHOW SAMPLE MONTHLY DATES
     # ════════════════════════════════════════════════════════════════════════
 
     print(
-        "\nRunning MONTHLY EMA 10 / EMA 25 analysis ..."
+        "\nSample monthly dates:"
     )
+
+
+    sample = (
+
+        monthly_df
+
+        .groupby('Symbol')
+
+        .head(12)
+
+        .tail(20)
+
+        [
+            [
+                'Symbol',
+                'Date',
+                'Close'
+            ]
+        ]
+
+    )
+
+
+    if not sample.empty:
+
+        print(
+            sample.to_string(
+                index=False
+            )
+        )
+
+
+    # ════════════════════════════════════════════════════════════════════════
+    # STEP 7
+    # MONTHLY EMA 10 / EMA 25
+    # ════════════════════════════════════════════════════════════════════════
+
+    print("\n" + "=" * 90)
+    print("STEP 7 - MONTHLY EMA 10 / EMA 25")
+    print("=" * 90)
 
 
     def process_monthly_symbol(
@@ -1490,72 +1646,84 @@ else:
         group
     ):
 
-        group = group.copy()
+        group = (
 
+            group
+            .sort_values('Date')
+            .copy()
+            .reset_index(drop=True)
 
-        group = group.sort_values(
-            'Date'
-        ).reset_index(
-            drop=True
         )
 
 
-        # ------------------------------------------------------------
-        # Require sufficient monthly history
-        # ------------------------------------------------------------
+        # Need at least 36 completed months
 
         if len(group) < MIN_MONTHS_REQUIRED:
 
             return pd.DataFrame()
 
 
-        # Number of completed monthly candles used
+        # Number of completed monthly observations
 
         group['Months_Used'] = (
+
             np.arange(
                 1,
                 len(group) + 1
             )
+
         )
 
 
-        # ------------------------------------------------------------
+        # ═══════════════════════════════════════════════════════════
         # EMA 10
-        # ------------------------------------------------------------
+        # ═══════════════════════════════════════════════════════════
 
         group['EMA_10'] = (
 
             group['Close']
+
             .ewm(
+
                 span=10,
+
                 adjust=False,
+
                 min_periods=10
+
             )
+
             .mean()
 
         )
 
 
-        # ------------------------------------------------------------
+        # ═══════════════════════════════════════════════════════════
         # EMA 25
-        # ------------------------------------------------------------
+        # ═══════════════════════════════════════════════════════════
 
         group['EMA_25'] = (
 
             group['Close']
+
             .ewm(
+
                 span=25,
+
                 adjust=False,
+
                 min_periods=25
+
             )
+
             .mean()
 
         )
 
 
-        # ------------------------------------------------------------
-        # Previous month EMA values
-        # ------------------------------------------------------------
+        # ═══════════════════════════════════════════════════════════
+        # PREVIOUS MONTH VALUES
+        # ═══════════════════════════════════════════════════════════
 
         group['Previous_EMA_10'] = (
 
@@ -1573,9 +1741,9 @@ else:
         )
 
 
-        # ------------------------------------------------------------
-        # EMA difference
-        # ------------------------------------------------------------
+        # ═══════════════════════════════════════════════════════════
+        # EMA DIFFERENCE
+        # ═══════════════════════════════════════════════════════════
 
         group['EMA_Difference'] = (
 
@@ -1586,47 +1754,22 @@ else:
         )
 
 
-        # ------------------------------------------------------------
-        # Monthly bullish crossover
-        #
-        # Previous completed month:
-        #
-        # EMA10 <= EMA25
-        #
-        # Current completed month:
-        #
-        # EMA10 > EMA25
-        # ------------------------------------------------------------
-
-        group['Monthly_Crossover'] = (
-
-            (group['EMA_10'] > group['EMA_25'])
-
-            &
-
-            (
-                group['Previous_EMA_10']
-                <=
-                group['Previous_EMA_25']
-            )
-
-        )
-
-
-        # ------------------------------------------------------------
-        # EMA gap percentage
-        # ------------------------------------------------------------
+        # ═══════════════════════════════════════════════════════════
+        # EMA GAP %
+        # ═══════════════════════════════════════════════════════════
 
         group['EMA_Gap_%'] = np.where(
 
             group['EMA_25'] != 0,
 
             (
+
                 group['EMA_Difference']
                 /
                 group['EMA_25']
                 *
                 100
+
             ),
 
             np.nan
@@ -1634,9 +1777,42 @@ else:
         )
 
 
-        # ------------------------------------------------------------
-        # Keep only genuine bullish crossovers
-        # ------------------------------------------------------------
+        # ═══════════════════════════════════════════════════════════
+        # BULLISH MONTHLY CROSSOVER
+        #
+        # Previous ACTUAL completed month:
+        #
+        # EMA10 <= EMA25
+        #
+        # Current ACTUAL completed month:
+        #
+        # EMA10 > EMA25
+        # ═══════════════════════════════════════════════════════════
+
+        group['Monthly_Crossover'] = (
+
+            (
+
+                group['EMA_10']
+                >
+                group['EMA_25']
+
+            )
+
+            &
+
+            (
+
+                group['Previous_EMA_10']
+                <=
+                group['Previous_EMA_25']
+
+            )
+
+        )
+
+
+        # Keep only crossover rows
 
         valid = group[
 
@@ -1655,11 +1831,11 @@ else:
         delayed(
             process_monthly_symbol
         )(
-            sym,
-            grp
+            symbol,
+            group
         )
 
-        for sym, grp
+        for symbol, group
         in monthly_df.groupby(
             'Symbol'
         )
@@ -1677,10 +1853,6 @@ else:
 
     ]
 
-
-    # ════════════════════════════════════════════════════════════════════════
-    # COMBINE MONTHLY RESULTS
-    # ════════════════════════════════════════════════════════════════════════
 
     if monthly_results:
 
@@ -1721,44 +1893,78 @@ else:
 
     else:
 
-        monthly_crossovers = pd.DataFrame(
-
-            columns=[
-
-                'Symbol',
-                'Date',
-                'Open',
-                'High',
-                'Low',
-                'Close',
-                'Volume',
-                'EMA_10',
-                'EMA_25',
-                'Previous_EMA_10',
-                'Previous_EMA_25',
-                'EMA_Difference',
-                'Monthly_Crossover',
-                'EMA_Gap_%',
-                'Months_Used'
-
-            ]
-
-        )
+        monthly_crossovers = pd.DataFrame()
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# FORMAT MONTHLY OUTPUT
+# STEP 8
+# FORMAT MONTHLY RESULTS
 # ════════════════════════════════════════════════════════════════════════════
+
+print("\n" + "=" * 90)
+print("STEP 8 - MONTHLY CROSSOVER RESULTS")
+print("=" * 90)
+
 
 if not monthly_crossovers.empty:
+
+    # ------------------------------------------------------------
+    # FINAL SAFETY CHECK:
+    # Every crossover date MUST exist in original CSV.
+    # ------------------------------------------------------------
+
+    original_dates = set(
+
+        monthly_source['Date']
+        .dt.normalize()
+        .unique()
+
+    )
+
+
+    crossover_dates = set(
+
+        pd.to_datetime(
+            monthly_crossovers['Date']
+        )
+        .dt.normalize()
+        .unique()
+
+    )
+
+
+    bad_dates = (
+
+        crossover_dates
+        -
+        original_dates
+
+    )
+
+
+    if bad_dates:
+
+        print(
+            "ERROR: Crossover contains a date "
+            "that does not exist in CSV."
+        )
+
+        print(
+            bad_dates
+        )
+
+        raise SystemExit(1)
+
+
+    # ------------------------------------------------------------
+    # Format date
+    # ------------------------------------------------------------
 
     monthly_crossovers['Date'] = (
 
         pd.to_datetime(
 
-            monthly_crossovers['Date'],
-
-            errors='coerce'
+            monthly_crossovers['Date']
 
         )
 
@@ -1769,38 +1975,9 @@ if not monthly_crossovers.empty:
     )
 
 
-    numeric_columns = [
-
-        'Open',
-        'High',
-        'Low',
-        'Close',
-        'Volume',
-        'EMA_10',
-        'EMA_25',
-        'Previous_EMA_10',
-        'Previous_EMA_25',
-        'EMA_Difference',
-        'EMA_Gap_%',
-        'Months_Used'
-
-    ]
-
-
-    for col in numeric_columns:
-
-        if col in monthly_crossovers.columns:
-
-            monthly_crossovers[col] = pd.to_numeric(
-
-                monthly_crossovers[col],
-
-                errors='coerce'
-
-            )
-
-
-    # Round price and EMA values
+    # ------------------------------------------------------------
+    # Round values
+    # ------------------------------------------------------------
 
     for col in [
 
@@ -1808,6 +1985,7 @@ if not monthly_crossovers.empty:
         'High',
         'Low',
         'Close',
+        'Volume',
         'EMA_10',
         'EMA_25',
         'Previous_EMA_10',
@@ -1821,10 +1999,63 @@ if not monthly_crossovers.empty:
 
             monthly_crossovers[col] = (
 
-                monthly_crossovers[col]
+                pd.to_numeric(
+
+                    monthly_crossovers[col],
+
+                    errors='coerce'
+
+                )
+
                 .round(2)
 
             )
+
+
+    print(
+        "\nCONFIRMED MONTHLY EMA 10 / EMA 25 CROSSOVERS:"
+    )
+
+
+    print(
+
+        monthly_crossovers[
+
+            [
+
+                'Symbol',
+
+                'Date',
+
+                'Close',
+
+                'EMA_10',
+
+                'EMA_25',
+
+                'Previous_EMA_10',
+
+                'Previous_EMA_25',
+
+                'EMA_Difference',
+
+                'EMA_Gap_%',
+
+                'Months_Used'
+
+            ]
+
+        ].to_string(
+            index=False
+        )
+
+    )
+
+else:
+
+    print(
+        "No confirmed monthly EMA crossover found."
+    )
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -1852,78 +2083,43 @@ monthly_output_columns = [
 ]
 
 
-monthly_crossovers = monthly_crossovers[
+if not monthly_crossovers.empty:
 
-    [
-
-        col
-
-        for col
-        in monthly_output_columns
-
-        if col
-        in monthly_crossovers.columns
-
-    ]
-
-]
-
-
-# ════════════════════════════════════════════════════════════════════════════
-# DISPLAY MONTHLY SIGNALS
-# ════════════════════════════════════════════════════════════════════════════
-
-print(
-    "\n" + "=" * 110
-)
-
-print(
-    "CONFIRMED MONTHLY EMA 10 / EMA 25 BULLISH CROSSOVERS"
-)
-
-print(
-    "=" * 110
-)
-
-
-if monthly_crossovers.empty:
-
-    print(
-        "No confirmed monthly EMA 10 / EMA 25 "
-        "bullish crossover found."
-    )
-
-else:
-
-    print(
+    monthly_crossovers = (
 
         monthly_crossovers[
 
             [
-                'Symbol',
-                'Date',
-                'Close',
-                'EMA_10',
-                'EMA_25',
-                'Previous_EMA_10',
-                'Previous_EMA_25',
-                'EMA_Difference',
-                'EMA_Gap_%',
-                'Months_Used'
+
+                col
+
+                for col
+                in monthly_output_columns
+
+                if col
+                in monthly_crossovers.columns
+
             ]
 
-        ].to_string(
-            index=False
-        )
+        ]
+
+    )
+
+else:
+
+    monthly_crossovers = pd.DataFrame(
+
+        columns=monthly_output_columns
 
     )
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# STEP 9 – UPLOAD MONTHLY EMA FILE
+# STEP 9
+# UPLOAD MONTHLY EMA FILE
 # ════════════════════════════════════════════════════════════════════════════
 
-monthly_file_name = (
+monthly_file = (
 
     f'Monthly_EMA_Cross_for_{today_str}.csv'
 
@@ -1932,7 +2128,7 @@ monthly_file_name = (
 
 github_put(
 
-    monthly_file_name,
+    monthly_file,
 
     monthly_crossovers
 
@@ -1940,15 +2136,14 @@ github_put(
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# STEP 10 – CLEAN OLD EMA FILES
+# STEP 10
+# DELETE OLD FILES
 # ════════════════════════════════════════════════════════════════════════════
 
-print(
-    "\nCleaning old EMA files ..."
-)
+print("\n" + "=" * 90)
+print("STEP 10 - CLEANING OLD FILES")
+print("=" * 90)
 
-
-# Keep only latest historical file
 
 delete_old_github_files(
 
@@ -1959,8 +2154,6 @@ delete_old_github_files(
 )
 
 
-# Keep only latest daily EMA file
-
 delete_old_github_files(
 
     'EMA_Cross_for_',
@@ -1969,8 +2162,6 @@ delete_old_github_files(
 
 )
 
-
-# Keep only latest monthly EMA file
 
 delete_old_github_files(
 
@@ -1982,7 +2173,7 @@ delete_old_github_files(
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# STEP 11 – REMOVE OLD JUNK CSV FILES
+# REMOVE OLD JUNK CSV FILES
 # ════════════════════════════════════════════════════════════════════════════
 
 JUNK_PATTERNS = [
@@ -2009,147 +2200,112 @@ headers = {
 }
 
 
-print(
-    "\nChecking for old junk CSV files ..."
+repo_url = (
+
+    f'https://api.github.com/repos/'
+    f'{GITHUB_REPO}/contents/'
+
 )
 
 
-r = requests.get(
+response = requests.get(
 
-    f'https://api.github.com/repos/'
-    f'{GITHUB_REPO}/contents/',
+    repo_url,
 
     headers=headers,
 
-    timeout=20
+    timeout=30
 
 )
 
 
-if r.status_code == 200:
+if response.status_code == 200:
 
-    repo_files = r.json()
+    repo_files = response.json()
 
 
-    for f in repo_files:
+    for file_info in repo_files:
 
-        if (
+        file_name = file_info.get(
+            'name',
+            ''
+        )
 
-            isinstance(f, dict)
 
-            and
+        should_delete = any(
 
-            any(
-
-                re.match(
-
-                    pattern,
-
-                    f.get(
-                        'name',
-                        ''
-                    )
-
-                )
-
-                for pattern
-                in JUNK_PATTERNS
-
+            re.match(
+                pattern,
+                file_name
             )
 
-        ):
+            for pattern
+            in JUNK_PATTERNS
 
-            dr = requests.delete(
+        )
 
-                f['url'],
+
+        if should_delete:
+
+            delete_response = requests.delete(
+
+                file_info['url'],
 
                 headers=headers,
-
-                timeout=20,
 
                 json={
 
                     'message':
-                        f'Cleanup: remove {f["name"]}',
+                        f'Cleanup {file_name}',
 
                     'sha':
-                        f['sha'],
+                        file_info['sha'],
 
                     'branch':
                         'main'
 
-                }
+                },
+
+                timeout=30
 
             )
 
 
-            if dr.status_code == 200:
+            if delete_response.status_code == 200:
 
                 print(
-
-                    f"Removed from GitHub: "
-                    f"{f['name']}"
-
+                    f"Removed junk file: "
+                    f"{file_name}"
                 )
-
-            else:
-
-                print(
-
-                    f"Could not remove "
-                    f"{f['name']}: "
-                    f"{dr.status_code}"
-
-                )
-
-
-else:
-
-    print(
-
-        f"Could not inspect GitHub repository: "
-        f"{r.status_code}"
-
-    )
 
 
 # ════════════════════════════════════════════════════════════════════════════
 # FINAL SUMMARY
 # ════════════════════════════════════════════════════════════════════════════
 
+print("\n" + "=" * 100)
+print("PROCESS COMPLETED SUCCESSFULLY")
+print("=" * 100)
+
 print(
-    "\n" + "=" * 100
+    f"Historical file:  {historical_file}"
 )
 
 print(
-    "PROCESS COMPLETED"
+    f"Daily EMA file:   {daily_file}"
 )
 
 print(
-    "=" * 100
-)
-
-
-print(
-    f"Daily EMA file:    {daily_file_name}"
+    f"Monthly EMA file: {monthly_file}"
 )
 
 print(
-    f"Monthly EMA file:  {monthly_file_name}"
-)
-
-print(
-    f"Historical file:   {daily_history_file}"
-)
-
-print(
-    f"Monthly history requirement: "
+    f"Minimum monthly history: "
     f"{MIN_MONTHS_REQUIRED} completed months"
 )
 
 print(
-    "Monthly calculation: "
-    "EMA 10 vs EMA 25"
+    "Monthly dates: ACTUAL CSV TRADING DATES ONLY"
 )
 
 print(
@@ -2157,8 +2313,9 @@ print(
 )
 
 print(
-    "=" * 100
+    "Calendar month-end dates: NOT GENERATED"
 )
 
+print("=" * 100)
 print("DONE.")
-
+```
