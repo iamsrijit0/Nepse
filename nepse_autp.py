@@ -1,3 +1,4 @@
+```python
 import subprocess
 import sys
 import os
@@ -8,16 +9,24 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 from bs4 import BeautifulSoup
+from zoneinfo import ZoneInfo
 
-# ── Install required packages ────────────────────────────────────────────────
+
+# ════════════════════════════════════════════════════════════════════════════
+# INSTALL REQUIRED PACKAGES
+# ════════════════════════════════════════════════════════════════════════════
+
 packages = [
     "nepse-scraper",
     "xlsxwriter",
     "gitpython",
     "pandas",
     "matplotlib",
-    "joblib"
+    "joblib",
+    "beautifulsoup4"
 ]
+
+print("Checking required packages ...")
 
 subprocess.check_call(
     [sys.executable, "-m", "pip", "install"] + packages,
@@ -48,49 +57,118 @@ STANDARD_COLS = [
 GITHUB_REPO = 'iamsrijit0/Nepse'
 GH_TOKEN = os.getenv("GH_TOKEN")
 
+# Minimum monthly history required before calculating EMA 10/25
+MIN_MONTHS_REQUIRED = 36
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# CHECK GITHUB TOKEN
+# ════════════════════════════════════════════════════════════════════════════
+
+if not GH_TOKEN:
+
+    print("\nERROR: GH_TOKEN environment variable is not set.")
+    print("Please set your GitHub token before running this script.")
+    raise SystemExit(1)
+
 
 # ════════════════════════════════════════════════════════════════════════════
 # HELPER FUNCTIONS
 # ════════════════════════════════════════════════════════════════════════════
 
 def to_float(x):
+
     try:
+        if x is None:
+            return 0.0
+
+        if isinstance(x, str):
+            x = x.replace(',', '').strip()
+
         return float(x)
+
     except (TypeError, ValueError):
+
         return 0.0
 
 
 def format_date(dt):
+
     """Return M/D/YYYY with no leading zeros."""
+
     return f"{dt.month}/{dt.day}/{dt.year}"
+
+
+def clean_numeric_series(series):
+
+    return pd.to_numeric(
+        series
+        .astype(str)
+        .str.replace(',', '', regex=False)
+        .replace('-', np.nan),
+        errors='coerce'
+    )
 
 
 # ════════════════════════════════════════════════════════════════════════════
 # STEP 1 – FETCH TODAY'S PRICE FROM NEPSE API
 # ════════════════════════════════════════════════════════════════════════════
 
+print("\n" + "=" * 80)
+print("STEP 1 - FETCHING TODAY'S NEPSE DATA")
+print("=" * 80)
+
 print("Fetching today's price from NEPSE ...")
 
-request_obj = Nepse_scraper(verify_ssl=False)
+request_obj = Nepse_scraper(
+    verify_ssl=False
+)
+
 today_price = request_obj.get_today_price()
 
+
 content_data = (
+
     today_price.get('content', [])
+
     if isinstance(today_price, dict)
+
     else today_price
+
 )
+
 
 filtered_data = []
 
+
 for item in content_data:
 
-    symbol = item.get('symbol', '')
-    date = item.get('businessDate', '')
+    symbol = item.get(
+        'symbol',
+        ''
+    )
 
-    open_price = to_float(item.get('openPrice'))
-    high_price = to_float(item.get('highPrice'))
-    low_price = to_float(item.get('lowPrice'))
-    close_price = to_float(item.get('closePrice'))
+    date = item.get(
+        'businessDate',
+        ''
+    )
+
+
+    open_price = to_float(
+        item.get('openPrice')
+    )
+
+    high_price = to_float(
+        item.get('highPrice')
+    )
+
+    low_price = to_float(
+        item.get('lowPrice')
+    )
+
+    close_price = to_float(
+        item.get('closePrice')
+    )
 
     volume = to_float(
         item.get('totalTradedQuantity')
@@ -104,11 +182,23 @@ for item in content_data:
         item.get('fiftyTwoWeekLow')
     )
 
+
     pct_chg = round(
-        ((close_price - open_price) / open_price * 100)
-        if open_price > 0 else 0,
+
+        (
+            (close_price - open_price)
+            / open_price
+            * 100
+        )
+
+        if open_price > 0
+
+        else 0,
+
         2
+
     )
+
 
     filtered_data.append({
 
@@ -126,7 +216,19 @@ for item in content_data:
     })
 
 
-first = pd.DataFrame(filtered_data)
+first = pd.DataFrame(
+    filtered_data
+)
+
+
+if first.empty:
+
+    print(
+        "\nNo data available from NEPSE API today."
+    )
+
+    raise SystemExit(1)
+
 
 first['Date'] = pd.to_datetime(
     first['Date'],
@@ -142,65 +244,101 @@ live_52 = (
 
     first
     .dropna(subset=['Date'])
-    .sort_values('Date', ascending=False)
-    .drop_duplicates('Symbol')
-    .set_index('Symbol')[['52High', '52Low']]
+    .sort_values(
+        'Date',
+        ascending=False
+    )
+    .drop_duplicates(
+        'Symbol'
+    )
+    .set_index(
+        'Symbol'
+    )[
+        ['52High', '52Low']
+    ]
 
 )
 
 
-if first.empty:
-
-    print(
-        "No data available from NEPSE API today."
-    )
-
-    raise SystemExit(1)
+print(
+    f"Today's NEPSE records: {len(first)}"
+)
 
 
 # ════════════════════════════════════════════════════════════════════════════
 # STEP 2 – GET LATEST HISTORICAL ESPEN FILE
 # ════════════════════════════════════════════════════════════════════════════
 
-def get_latest_espen_url(repo_url: str) -> str:
+print("\n" + "=" * 80)
+print("STEP 2 - LOADING HISTORICAL ESPEN DATA")
+print("=" * 80)
+
+
+def get_latest_espen_url(repo_url):
 
     response = requests.get(
         repo_url,
-        timeout=15
+        timeout=20
     )
+
+    response.raise_for_status()
+
 
     soup = BeautifulSoup(
         response.content,
         'html.parser'
     )
 
+
     file_urls = {}
 
-    for link in soup.find_all('a', href=True):
+
+    for link in soup.find_all(
+        'a',
+        href=True
+    ):
 
         href = link['href']
 
+
         if (
+
             'espen_' in href
-            and href.endswith('.csv')
+
+            and
+
+            href.endswith('.csv')
+
         ):
 
             date_match = re.search(
+
                 r'(\d{4}-\d{2}-\d{2})',
+
                 href
+
             )
+
 
             if date_match:
 
-                file_date = date_match.group(1)
+                file_date = (
+                    date_match.group(1)
+                )
+
 
                 raw_url = (
+
                     f"https://raw.githubusercontent.com/"
                     f"{GITHUB_REPO}/main/"
                     f"{href.split('/')[-1]}"
+
                 )
 
-                file_urls[file_date] = raw_url
+
+                file_urls[
+                    file_date
+                ] = raw_url
 
 
     if not file_urls:
@@ -210,7 +348,10 @@ def get_latest_espen_url(repo_url: str) -> str:
         )
 
 
-    latest = max(file_urls.keys())
+    latest = max(
+        file_urls.keys()
+    )
+
 
     print(
         f"Latest espen_ file date: {latest}"
@@ -220,45 +361,70 @@ def get_latest_espen_url(repo_url: str) -> str:
         f"URL: {file_urls[latest]}"
     )
 
+
     return file_urls[latest]
 
 
 secondss = pd.DataFrame()
 
+
 try:
 
     latest_url = get_latest_espen_url(
-        f'https://github.com/{GITHUB_REPO}/tree/main'
+
+        f'https://github.com/'
+        f'{GITHUB_REPO}/tree/main'
+
     )
 
-    raw = pd.read_csv(latest_url)
 
-    # Keep only standard columns
+    raw = pd.read_csv(
+        latest_url
+    )
+
+
     available = [
-        c for c in STANDARD_COLS
+
+        c
+
+        for c in STANDARD_COLS
+
         if c in raw.columns
+
     ]
 
-    secondss = raw[available].copy()
 
-    # Add missing columns
+    secondss = raw[
+        available
+    ].copy()
+
+
     for col in STANDARD_COLS:
 
         if col not in secondss.columns:
+
             secondss[col] = np.nan
 
 
-    secondss = secondss[STANDARD_COLS]
+    secondss = secondss[
+        STANDARD_COLS
+    ]
+
 
     secondss['Date'] = pd.to_datetime(
+
         secondss['Date'],
+
         errors='coerce'
+
     )
+
 
     print(
         f"Historical data loaded: "
-        f"{len(secondss)} rows"
+        f"{len(secondss):,} rows"
     )
+
 
 except Exception as e:
 
@@ -271,55 +437,87 @@ except Exception as e:
 # STEP 3 – MERGE TODAY + HISTORY
 # ════════════════════════════════════════════════════════════════════════════
 
+print("\n" + "=" * 80)
+print("STEP 3 - MERGING TODAY + HISTORICAL DATA")
+print("=" * 80)
+
+
 dfs = [
+
     df
-    for df in [first, secondss]
+
+    for df in [
+        first,
+        secondss
+    ]
+
     if not df.empty
+
 ]
+
 
 if not dfs:
 
     print(
-        "No data to process."
+        "No data available to process."
     )
 
     raise SystemExit(1)
 
 
 combined_df = pd.concat(
+
     dfs,
+
     ignore_index=True,
+
     join='outer'
+
 )
 
 
 combined_df['Date'] = pd.to_datetime(
+
     combined_df['Date'],
+
     errors='coerce'
+
 )
 
+
 combined_df.dropna(
+
     subset=['Date'],
+
     inplace=True
+
 )
 
 
 finall_df = pd.DataFrame()
 
 
-for symbol, grp in combined_df.groupby('Symbol'):
+for symbol, grp in combined_df.groupby(
+    'Symbol'
+):
 
     grp = (
+
         grp
-        .sort_values('Date', ascending=False)
+        .sort_values(
+            'Date',
+            ascending=False
+        )
         .drop_duplicates(
             'Date',
             keep='first'
         )
+
     )
 
 
     # Use latest live 52-week values
+
     if symbol in live_52.index:
 
         grp['52High'] = live_52.loc[
@@ -334,27 +532,39 @@ for symbol, grp in combined_df.groupby('Symbol'):
 
 
     finall_df = pd.concat(
-        [finall_df, grp],
+
+        [
+            finall_df,
+            grp
+        ],
+
         ignore_index=True
+
     )
 
 
 # Format date
-finall_df['Date'] = finall_df['Date'].apply(
-    format_date
+
+finall_df['Date'] = (
+
+    finall_df['Date']
+    .apply(format_date)
+
 )
 
 
-# Ensure column order
+# Ensure correct column order
+
 finall_df = finall_df[
     STANDARD_COLS
 ]
 
 
 print(
-    f"\nCombined data ready "
-    f"({len(finall_df)} rows)"
+    f"Combined historical dataset: "
+    f"{len(finall_df):,} rows"
 )
+
 
 print(
     finall_df.head(10).to_string(
@@ -368,61 +578,104 @@ print(
 # ════════════════════════════════════════════════════════════════════════════
 
 def github_put(
-    file_name: str,
-    df: pd.DataFrame
+    file_name,
+    df
 ):
 
+    print(
+        f"\nUploading {file_name} ..."
+    )
+
+
     csv_b64 = base64.b64encode(
-        df.to_csv(index=False).encode()
+
+        df.to_csv(
+            index=False
+        ).encode()
+
     ).decode()
 
+
     url = (
+
         f'https://api.github.com/repos/'
-        f'{GITHUB_REPO}/contents/{file_name}'
+        f'{GITHUB_REPO}/contents/'
+        f'{file_name}'
+
     )
+
 
     headers = {
-        'Authorization': f'token {GH_TOKEN}'
+
+        'Authorization':
+            f'token {GH_TOKEN}',
+
+        'Accept':
+            'application/vnd.github+json'
+
     }
 
-    # Check if file already exists
+
+    # Check whether file already exists
+
     r = requests.get(
+
         url,
+
         headers=headers,
-        timeout=15
+
+        timeout=20
+
     )
 
+
     sha = (
+
         r.json().get('sha')
+
         if r.status_code == 200
+
         else None
+
     )
+
 
     payload = {
 
-        'message': f'Add {file_name}',
-        'content': csv_b64,
-        'branch': 'main'
+        'message':
+            f'Update {file_name}',
+
+        'content':
+            csv_b64,
+
+        'branch':
+            'main'
 
     }
 
+
     if sha:
+
         payload['sha'] = sha
 
 
     resp = requests.put(
+
         url,
+
         headers=headers,
+
         json=payload,
+
         timeout=30
+
     )
 
 
     if resp.status_code in (200, 201):
 
         print(
-            f"Uploaded '{file_name}' "
-            f"successfully."
+            f"Uploaded '{file_name}' successfully."
         )
 
     else:
@@ -439,31 +692,47 @@ def github_put(
 # ════════════════════════════════════════════════════════════════════════════
 
 def delete_old_github_files(
-    prefix: str,
-    keep: int = 1
+    prefix,
+    keep=1
 ):
 
     headers = {
-        'Authorization': f'token {GH_TOKEN}'
+
+        'Authorization':
+            f'token {GH_TOKEN}',
+
+        'Accept':
+            'application/vnd.github+json'
+
     }
 
+
     list_url = (
+
         f'https://api.github.com/repos/'
         f'{GITHUB_REPO}/contents/'
+
     )
 
+
     r = requests.get(
+
         list_url,
+
         headers=headers,
-        timeout=15
+
+        timeout=20
+
     )
 
 
     if r.status_code != 200:
 
         print(
+
             f"Could not list repo contents: "
             f"{r.status_code}"
+
         )
 
         return
@@ -475,47 +744,76 @@ def delete_old_github_files(
     matched = sorted(
 
         [
+
             f
+
             for f in all_files
 
             if (
+
                 isinstance(f, dict)
-                and f.get('name', '').startswith(prefix)
-                and f.get('name', '').endswith('.csv')
+
+                and
+
+                f.get(
+                    'name',
+                    ''
+                ).startswith(prefix)
+
+                and
+
+                f.get(
+                    'name',
+                    ''
+                ).endswith('.csv')
+
             )
+
         ],
 
         key=lambda f: f['name'],
+
         reverse=True
 
     )
 
 
-    to_delete = matched[keep:]
+    to_delete = matched[
+        keep:
+    ]
 
 
     for f in to_delete:
 
         del_url = f['url']
+
         sha = f['sha']
+
 
         payload = {
 
             'message':
                 f'Auto-cleanup: remove {f["name"]}',
 
-            'sha': sha,
+            'sha':
+                sha,
 
-            'branch': 'main'
+            'branch':
+                'main'
 
         }
 
 
         dr = requests.delete(
+
             del_url,
+
             headers=headers,
+
             json=payload,
-            timeout=15
+
+            timeout=20
+
         )
 
 
@@ -529,82 +827,120 @@ def delete_old_github_files(
         else:
 
             print(
+
                 f"Failed to delete "
                 f"{f['name']}: "
                 f"{dr.status_code} "
                 f"{dr.text}"
+
             )
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# STEP 4 – UPLOAD DAILY HISTORICAL FILE
+# STEP 4 – GET NEPAL TODAY'S DATE
 # ════════════════════════════════════════════════════════════════════════════
 
-today_str = datetime.today().strftime(
+nepal_now = pd.Timestamp.now(
+    tz=ZoneInfo("Asia/Kathmandu")
+)
+
+
+nepal_today = (
+    nepal_now
+    .normalize()
+    .tz_localize(None)
+)
+
+
+today_str = nepal_today.strftime(
     '%Y-%m-%d'
 )
 
 
-github_put(
-    f'espen_{today_str}.csv',
-    finall_df
-)
-
-
-# ════════════════════════════════════════════════════════════════════════════
-# STEP 5 – DAILY EMA 20 / EMA 50 CROSSOVER
-# ════════════════════════════════════════════════════════════════════════════
-
 print(
-    "\nRunning DAILY EMA 20 / EMA 50 analysis ..."
+    f"\nNepal date: {today_str}"
 )
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# STEP 5 – UPLOAD DAILY HISTORICAL FILE
+# ════════════════════════════════════════════════════════════════════════════
+
+daily_history_file = (
+    f'espen_{today_str}.csv'
+)
+
+
+github_put(
+
+    daily_history_file,
+
+    finall_df
+
+)
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# STEP 6 – DAILY EMA 20 / EMA 50
+# ════════════════════════════════════════════════════════════════════════════
+
+print("\n" + "=" * 80)
+print("STEP 6 - DAILY EMA 20 / EMA 50 ANALYSIS")
+print("=" * 80)
 
 
 daily_data = finall_df.copy()
 
 
 daily_data['Date'] = pd.to_datetime(
+
     daily_data['Date'],
+
     errors='coerce'
+
 )
 
 
-daily_data['Close'] = pd.to_numeric(
+daily_data['Close'] = clean_numeric_series(
 
     daily_data['Close']
-    .astype(str)
-    .str.replace(',', ''),
-
-    errors='coerce'
 
 )
 
 
-daily_data['Volume'] = pd.to_numeric(
+daily_data['Volume'] = clean_numeric_series(
 
     daily_data['Volume']
-    .astype(str)
-    .str.replace(',', '')
-    .replace('-', np.nan),
-
-    errors='coerce'
 
 )
 
 
 daily_data = daily_data.dropna(
-    subset=['Symbol', 'Date', 'Close']
+
+    subset=[
+        'Symbol',
+        'Date',
+        'Close'
+    ]
+
 )
 
 
 daily_data = daily_data.sort_values(
-    ['Symbol', 'Date']
-).reset_index(drop=True)
+
+    [
+        'Symbol',
+        'Date'
+    ]
+
+).reset_index(
+    drop=True
+)
 
 
-# ────────────────────────────────────────────────────────────────────────────
+# ════════════════════════════════════════════════════════════════════════════
 # DAILY PROCESSING
-# ────────────────────────────────────────────────────────────────────────────
+# ════════════════════════════════════════════════════════════════════════════
 
 def process_daily_symbol(
     symbol,
@@ -613,86 +949,140 @@ def process_daily_symbol(
 
     group = group.copy()
 
+
     group = group.sort_values(
         'Date'
-    ).reset_index(drop=True)
+    ).reset_index(
+        drop=True
+    )
+
+
+    # Need enough observations
+
+    if len(group) < 50:
+
+        return pd.DataFrame()
 
 
     # EMA 20
+
     group['EMA_20'] = (
+
         group['Close']
         .ewm(
             span=20,
-            adjust=False
+            adjust=False,
+            min_periods=20
         )
         .mean()
+
     )
 
 
     # EMA 50
+
     group['EMA_50'] = (
+
         group['Close']
         .ewm(
             span=50,
-            adjust=False
+            adjust=False,
+            min_periods=50
         )
         .mean()
+
     )
 
 
-    # RSI
+    # RSI 14
+
     delta = group['Close'].diff()
 
+
     gain = (
+
         delta
-        .where(delta > 0, 0)
+        .where(
+            delta > 0,
+            0
+        )
         .rolling(
             14,
-            min_periods=1
+            min_periods=14
         )
         .mean()
+
     )
 
+
     loss = (
+
         -delta
-        .where(delta < 0, 0)
+        .where(
+            delta < 0,
+            0
+        )
         .rolling(
             14,
-            min_periods=1
+            min_periods=14
         )
         .mean()
+
     )
+
 
     rs = gain / loss
 
+
     group['RSI'] = (
-        100 -
-        (100 / (1 + rs))
+
+        100
+        -
+        (
+            100
+            /
+            (1 + rs)
+        )
+
     )
 
 
     # 30-day average volume
+
     group['30D_Avg_Volume'] = (
+
         group['Volume']
         .rolling(
             30,
-            min_periods=1
+            min_periods=30
         )
         .mean()
+
     )
 
 
     # EMA slopes
+
     group['Slope_20'] = (
-        group['EMA_20'].diff(5) / 5
+
+        group['EMA_20']
+        .diff(5)
+        / 5
+
     )
 
+
     group['Slope_50'] = (
-        group['EMA_50'].diff(5) / 5
+
+        group['EMA_50']
+        .diff(5)
+        / 5
+
     )
 
 
     # Bullish crossover
+
     group['Crossover'] = (
 
         (group['EMA_20'] > group['EMA_50'])
@@ -709,6 +1099,7 @@ def process_daily_symbol(
 
 
     # Existing filters
+
     valid = group[
 
         group['Crossover']
@@ -745,14 +1136,14 @@ def process_daily_symbol(
             group['Close']
             .rolling(
                 60,
-                min_periods=1
+                min_periods=60
             )
             .max()
             .shift(1)
             * 0.95
         )
 
-    ]
+    ].copy()
 
 
     return valid
@@ -761,29 +1152,43 @@ def process_daily_symbol(
 daily_results = Parallel(
     n_jobs=-1
 )(
-    delayed(process_daily_symbol)(
+
+    delayed(
+        process_daily_symbol
+    )(
         sym,
         grp
     )
 
     for sym, grp
-    in daily_data.groupby('Symbol')
+    in daily_data.groupby(
+        'Symbol'
+    )
+
 )
 
 
 daily_results = [
+
     x
+
     for x in daily_results
+
     if not x.empty
+
 ]
 
 
 if daily_results:
 
     all_valid = pd.concat(
+
         daily_results,
+
         ignore_index=True
+
     )
+
 
     daily_crossovers = (
 
@@ -795,7 +1200,9 @@ if daily_results:
         .drop_duplicates(
             'Symbol'
         )
-        .reset_index(drop=True)
+        .reset_index(
+            drop=True
+        )
 
     )
 
@@ -809,16 +1216,15 @@ else:
 # ════════════════════════════════════════════════════════════════════════════
 
 print(
-    "\n" +
-    "=" * 80
+    "\n" + "=" * 100
 )
 
 print(
-    "LATEST DAILY EMA 20 / EMA 50 CROSSOVERS"
+    "LATEST DAILY EMA 20 / EMA 50 BULLISH CROSSOVERS"
 )
 
 print(
-    "=" * 80
+    "=" * 100
 )
 
 
@@ -841,8 +1247,9 @@ else:
                 'EMA_50',
                 'RSI'
             ]
-        ]
-        .to_string(index=False)
+        ].to_string(
+            index=False
+        )
 
     )
 
@@ -852,93 +1259,137 @@ else:
 # ════════════════════════════════════════════════════════════════════════════
 
 daily_file_name = (
+
     f'EMA_Cross_for_{today_str}.csv'
+
 )
 
 
 github_put(
+
     daily_file_name,
+
     daily_crossovers
+
 )
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# ════════════════════════════════════════════════════════════════════════════
-# STEP 6 – CREATE COMPLETED MONTHLY DATA
+# STEP 7 – CREATE COMPLETED MONTHLY OHLCV DATA
 # ════════════════════════════════════════════════════════════════════════════
 
-print("\nCreating COMPLETED MONTHLY OHLC data ...")
+print("\n" + "=" * 80)
+print("STEP 7 - CREATING COMPLETED MONTHLY OHLCV DATA")
+print("=" * 80)
+
 
 monthly_source = finall_df.copy()
 
+
 monthly_source['Date'] = pd.to_datetime(
+
     monthly_source['Date'],
+
     errors='coerce'
+
 )
 
-# Numeric conversion
-for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
-    monthly_source[col] = pd.to_numeric(
+
+for col in [
+
+    'Open',
+    'High',
+    'Low',
+    'Close',
+    'Volume'
+
+]:
+
+    monthly_source[col] = clean_numeric_series(
+
         monthly_source[col]
-        .astype(str)
-        .str.replace(',', '')
-        .replace('-', np.nan),
-        errors='coerce'
+
     )
 
+
 monthly_source = monthly_source.dropna(
-    subset=['Symbol', 'Date', 'Close']
+
+    subset=[
+        'Symbol',
+        'Date',
+        'Close'
+    ]
+
 )
+
 
 monthly_source = monthly_source.sort_values(
-    ['Symbol', 'Date']
+
+    [
+        'Symbol',
+        'Date'
+    ]
+
 )
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# IMPORTANT:
-# REMOVE THE CURRENT INCOMPLETE MONTH
+# CURRENT MONTH MUST NOT BE USED
 # ════════════════════════════════════════════════════════════════════════════
-
-today = pd.Timestamp.today().normalize()
-
-current_year = today.year
-current_month = today.month
 
 print(
-    f"Current date: {today.strftime('%Y-%m-%d')}"
+    f"Current Nepal date: "
+    f"{nepal_today.strftime('%Y-%m-%d')}"
 )
 
 print(
-    "Current incomplete month will NOT be used "
-    "for monthly EMA calculations."
+    "Current incomplete month will be excluded."
 )
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# BUILD COMPLETED MONTHLY OHLCV
+# MONTHLY OHLCV CREATION
 # ════════════════════════════════════════════════════════════════════════════
 
 def make_monthly_data(group):
 
-    group = group.sort_values('Date').copy()
+    group = group.sort_values(
+        'Date'
+    ).copy()
 
-    group = group.set_index('Date')
 
-    # Month-end aggregation
-    monthly = group.resample('ME').agg({
+    symbol = group[
+        'Symbol'
+    ].iloc[0]
+
+
+    group = group.set_index(
+        'Date'
+    )
+
+
+    monthly = group.resample(
+        'ME'
+    ).agg({
 
         'Open': 'first',
+
         'High': 'max',
+
         'Low': 'min',
+
         'Close': 'last',
+
         'Volume': 'sum'
 
     })
 
-    monthly['Symbol'] = group['Symbol'].iloc[0]
+
+    monthly['Symbol'] = symbol
+
 
     monthly = monthly.reset_index()
+
 
     return monthly
 
@@ -946,249 +1397,353 @@ def make_monthly_data(group):
 monthly_results = Parallel(
     n_jobs=-1
 )(
-    delayed(make_monthly_data)(group)
+
+    delayed(
+        make_monthly_data
+    )(
+        group
+    )
 
     for symbol, group
-    in monthly_source.groupby('Symbol')
+    in monthly_source.groupby(
+        'Symbol'
+    )
+
 )
 
-
-monthly_df = pd.concat(
-    monthly_results,
-    ignore_index=True
-)
-
-
-# ════════════════════════════════════════════════════════════════════════════
-# REMOVE CURRENT MONTH
-# ════════════════════════════════════════════════════════════════════════════
-
-monthly_df = monthly_df[
-    ~(
-        (monthly_df['Date'].dt.year == current_year) &
-        (monthly_df['Date'].dt.month == current_month)
-    )
-].copy()
-
-
-monthly_df = monthly_df.sort_values(
-    ['Symbol', 'Date']
-).reset_index(drop=True)
-
-
-print(
-    f"Completed monthly records: "
-    f"{len(monthly_df)}"
-)
-
-
-# ════════════════════════════════════════════════════════════════════════════
-# STEP 7 – MONTHLY EMA 10 / EMA 25
-# ════════════════════════════════════════════════════════════════════════════
-
-print(
-    "\nRunning MONTHLY EMA 10 / EMA 25 analysis ..."
-)
-
-
-def process_monthly_symbol(symbol, group):
-
-    group = group.copy()
-
-    group = group.sort_values(
-        'Date'
-    ).reset_index(drop=True)
-
-
-    # ------------------------------------------------------------
-    # IMPORTANT:
-    # Need sufficient monthly history
-    # ------------------------------------------------------------
-
-    if len(group) < 25:
-
-        return pd.DataFrame()
-
-
-    # ------------------------------------------------------------
-    # EMA 10
-    # ------------------------------------------------------------
-
-    group['EMA_10'] = (
-        group['Close']
-        .ewm(
-            span=10,
-            adjust=False,
-            min_periods=10
-        )
-        .mean()
-    )
-
-
-    # ------------------------------------------------------------
-    # EMA 25
-    # ------------------------------------------------------------
-
-    group['EMA_25'] = (
-        group['Close']
-        .ewm(
-            span=25,
-            adjust=False,
-            min_periods=25
-        )
-        .mean()
-    )
-
-
-    # ------------------------------------------------------------
-    # Previous month's EMA values
-    # ------------------------------------------------------------
-
-    group['Previous_EMA_10'] = (
-        group['EMA_10'].shift(1)
-    )
-
-    group['Previous_EMA_25'] = (
-        group['EMA_25'].shift(1)
-    )
-
-
-    # ------------------------------------------------------------
-    # EMA difference
-    # ------------------------------------------------------------
-
-    group['EMA_Difference'] = (
-        group['EMA_10']
-        -
-        group['EMA_25']
-    )
-
-
-    # ------------------------------------------------------------
-    # Bullish crossover
-    #
-    # Previous month:
-    # EMA10 <= EMA25
-    #
-    # Current completed month:
-    # EMA10 > EMA25
-    # ------------------------------------------------------------
-
-    group['Monthly_Crossover'] = (
-
-        (group['EMA_10'] > group['EMA_25'])
-
-        &
-
-        (
-            group['Previous_EMA_10']
-            <=
-            group['Previous_EMA_25']
-        )
-
-    )
-
-
-    # ------------------------------------------------------------
-    # Percentage gap
-    # ------------------------------------------------------------
-
-    group['EMA_Gap_%'] = (
-
-        (
-            group['EMA_10']
-            -
-            group['EMA_25']
-        )
-
-        /
-
-        group['EMA_25']
-
-        *
-
-        100
-
-    )
-
-
-    # ------------------------------------------------------------
-    # Keep actual bullish crossovers
-    # ------------------------------------------------------------
-
-    valid = group[
-        group['Monthly_Crossover']
-    ].copy()
-
-
-    return valid
-
-
-monthly_results = Parallel(
-    n_jobs=-1
-)(
-    delayed(process_monthly_symbol)(
-        sym,
-        grp
-    )
-
-    for sym, grp
-    in monthly_df.groupby('Symbol')
-)
-
-
-monthly_results = [
-    x
-    for x in monthly_results
-    if not x.empty
-]
-
-
-# ════════════════════════════════════════════════════════════════════════════
-# COMBINE RESULTS
-# ════════════════════════════════════════════════════════════════════════════
 
 if monthly_results:
 
-    monthly_crossovers = pd.concat(
-        monthly_results,
-        ignore_index=True
-    )
+    monthly_df = pd.concat(
 
-    monthly_crossovers = (
-        monthly_crossovers
-        .sort_values(
-            'Date',
-            ascending=False
-        )
-        .drop_duplicates(
-            'Symbol'
-        )
-        .reset_index(drop=True)
+        monthly_results,
+
+        ignore_index=True
+
     )
 
 else:
 
-    monthly_crossovers = pd.DataFrame(
-        columns=[
+    monthly_df = pd.DataFrame()
 
-            'Symbol',
-            'Date',
-            'Open',
-            'High',
-            'Low',
-            'Close',
-            'Volume',
-            'EMA_10',
-            'EMA_25',
-            'Previous_EMA_10',
-            'Previous_EMA_25',
-            'EMA_Difference',
-            'Monthly_Crossover',
-            'EMA_Gap_%'
 
-        ]
+if monthly_df.empty:
+
+    print(
+        "ERROR: Could not create monthly data."
     )
+
+    monthly_crossovers = pd.DataFrame()
+
+else:
+
+    # ════════════════════════════════════════════════════════════════════════
+    # REMOVE CURRENT INCOMPLETE MONTH
+    # ════════════════════════════════════════════════════════════════════════
+
+    monthly_df = monthly_df[
+
+        ~(
+
+            (monthly_df['Date'].dt.year
+             == nepal_today.year)
+
+            &
+
+            (monthly_df['Date'].dt.month
+             == nepal_today.month)
+
+        )
+
+    ].copy()
+
+
+    monthly_df = monthly_df.sort_values(
+
+        [
+            'Symbol',
+            'Date'
+        ]
+
+    ).reset_index(
+        drop=True
+    )
+
+
+    print(
+        f"Completed monthly records: "
+        f"{len(monthly_df):,}"
+    )
+
+
+    # ════════════════════════════════════════════════════════════════════════
+    # STEP 8 – MONTHLY EMA 10 / EMA 25
+    # ════════════════════════════════════════════════════════════════════════
+
+    print(
+        "\nRunning MONTHLY EMA 10 / EMA 25 analysis ..."
+    )
+
+
+    def process_monthly_symbol(
+        symbol,
+        group
+    ):
+
+        group = group.copy()
+
+
+        group = group.sort_values(
+            'Date'
+        ).reset_index(
+            drop=True
+        )
+
+
+        # ------------------------------------------------------------
+        # Require sufficient monthly history
+        # ------------------------------------------------------------
+
+        if len(group) < MIN_MONTHS_REQUIRED:
+
+            return pd.DataFrame()
+
+
+        # Number of completed monthly candles used
+
+        group['Months_Used'] = (
+            np.arange(
+                1,
+                len(group) + 1
+            )
+        )
+
+
+        # ------------------------------------------------------------
+        # EMA 10
+        # ------------------------------------------------------------
+
+        group['EMA_10'] = (
+
+            group['Close']
+            .ewm(
+                span=10,
+                adjust=False,
+                min_periods=10
+            )
+            .mean()
+
+        )
+
+
+        # ------------------------------------------------------------
+        # EMA 25
+        # ------------------------------------------------------------
+
+        group['EMA_25'] = (
+
+            group['Close']
+            .ewm(
+                span=25,
+                adjust=False,
+                min_periods=25
+            )
+            .mean()
+
+        )
+
+
+        # ------------------------------------------------------------
+        # Previous month EMA values
+        # ------------------------------------------------------------
+
+        group['Previous_EMA_10'] = (
+
+            group['EMA_10']
+            .shift(1)
+
+        )
+
+
+        group['Previous_EMA_25'] = (
+
+            group['EMA_25']
+            .shift(1)
+
+        )
+
+
+        # ------------------------------------------------------------
+        # EMA difference
+        # ------------------------------------------------------------
+
+        group['EMA_Difference'] = (
+
+            group['EMA_10']
+            -
+            group['EMA_25']
+
+        )
+
+
+        # ------------------------------------------------------------
+        # Monthly bullish crossover
+        #
+        # Previous completed month:
+        #
+        # EMA10 <= EMA25
+        #
+        # Current completed month:
+        #
+        # EMA10 > EMA25
+        # ------------------------------------------------------------
+
+        group['Monthly_Crossover'] = (
+
+            (group['EMA_10'] > group['EMA_25'])
+
+            &
+
+            (
+                group['Previous_EMA_10']
+                <=
+                group['Previous_EMA_25']
+            )
+
+        )
+
+
+        # ------------------------------------------------------------
+        # EMA gap percentage
+        # ------------------------------------------------------------
+
+        group['EMA_Gap_%'] = np.where(
+
+            group['EMA_25'] != 0,
+
+            (
+                group['EMA_Difference']
+                /
+                group['EMA_25']
+                *
+                100
+            ),
+
+            np.nan
+
+        )
+
+
+        # ------------------------------------------------------------
+        # Keep only genuine bullish crossovers
+        # ------------------------------------------------------------
+
+        valid = group[
+
+            group['Monthly_Crossover']
+
+        ].copy()
+
+
+        return valid
+
+
+    monthly_results = Parallel(
+        n_jobs=-1
+    )(
+
+        delayed(
+            process_monthly_symbol
+        )(
+            sym,
+            grp
+        )
+
+        for sym, grp
+        in monthly_df.groupby(
+            'Symbol'
+        )
+
+    )
+
+
+    monthly_results = [
+
+        x
+
+        for x in monthly_results
+
+        if not x.empty
+
+    ]
+
+
+    # ════════════════════════════════════════════════════════════════════════
+    # COMBINE MONTHLY RESULTS
+    # ════════════════════════════════════════════════════════════════════════
+
+    if monthly_results:
+
+        monthly_crossovers = pd.concat(
+
+            monthly_results,
+
+            ignore_index=True
+
+        )
+
+
+        monthly_crossovers = (
+
+            monthly_crossovers
+
+            .sort_values(
+
+                'Date',
+
+                ascending=False
+
+            )
+
+            .drop_duplicates(
+
+                'Symbol'
+
+            )
+
+            .reset_index(
+
+                drop=True
+
+            )
+
+        )
+
+    else:
+
+        monthly_crossovers = pd.DataFrame(
+
+            columns=[
+
+                'Symbol',
+                'Date',
+                'Open',
+                'High',
+                'Low',
+                'Close',
+                'Volume',
+                'EMA_10',
+                'EMA_25',
+                'Previous_EMA_10',
+                'Previous_EMA_25',
+                'EMA_Difference',
+                'Monthly_Crossover',
+                'EMA_Gap_%',
+                'Months_Used'
+
+            ]
+
+        )
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -1198,9 +1753,21 @@ else:
 if not monthly_crossovers.empty:
 
     monthly_crossovers['Date'] = (
-        monthly_crossovers['Date']
-        .dt.strftime('%Y-%m-%d')
+
+        pd.to_datetime(
+
+            monthly_crossovers['Date'],
+
+            errors='coerce'
+
+        )
+
+        .dt.strftime(
+            '%Y-%m-%d'
+        )
+
     )
+
 
     numeric_columns = [
 
@@ -1214,24 +1781,29 @@ if not monthly_crossovers.empty:
         'Previous_EMA_10',
         'Previous_EMA_25',
         'EMA_Difference',
-        'EMA_Gap_%'
+        'EMA_Gap_%',
+        'Months_Used'
 
     ]
+
 
     for col in numeric_columns:
 
         if col in monthly_crossovers.columns:
 
-            monthly_crossovers[col] = (
-                pd.to_numeric(
-                    monthly_crossovers[col],
-                    errors='coerce'
-                )
+            monthly_crossovers[col] = pd.to_numeric(
+
+                monthly_crossovers[col],
+
+                errors='coerce'
+
             )
 
 
-    # Round prices/EMA values
+    # Round price and EMA values
+
     for col in [
+
         'Open',
         'High',
         'Low',
@@ -1242,18 +1814,21 @@ if not monthly_crossovers.empty:
         'Previous_EMA_25',
         'EMA_Difference',
         'EMA_Gap_%'
+
     ]:
 
         if col in monthly_crossovers.columns:
 
             monthly_crossovers[col] = (
+
                 monthly_crossovers[col]
                 .round(2)
+
             )
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# FINAL COLUMN ORDER
+# FINAL MONTHLY COLUMN ORDER
 # ════════════════════════════════════════════════════════════════════════════
 
 monthly_output_columns = [
@@ -1271,27 +1846,35 @@ monthly_output_columns = [
     'Previous_EMA_25',
     'EMA_Difference',
     'Monthly_Crossover',
-    'EMA_Gap_%'
+    'EMA_Gap_%',
+    'Months_Used'
 
 ]
 
 
 monthly_crossovers = monthly_crossovers[
+
     [
+
         col
-        for col in monthly_output_columns
-        if col in monthly_crossovers.columns
+
+        for col
+        in monthly_output_columns
+
+        if col
+        in monthly_crossovers.columns
+
     ]
+
 ]
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# DISPLAY RESULTS
+# DISPLAY MONTHLY SIGNALS
 # ════════════════════════════════════════════════════════════════════════════
 
 print(
-    "\n" +
-    "=" * 100
+    "\n" + "=" * 110
 )
 
 print(
@@ -1299,7 +1882,7 @@ print(
 )
 
 print(
-    "=" * 100
+    "=" * 110
 )
 
 
@@ -1313,7 +1896,9 @@ if monthly_crossovers.empty:
 else:
 
     print(
+
         monthly_crossovers[
+
             [
                 'Symbol',
                 'Date',
@@ -1323,53 +1908,110 @@ else:
                 'Previous_EMA_10',
                 'Previous_EMA_25',
                 'EMA_Difference',
-                'EMA_Gap_%'
+                'EMA_Gap_%',
+                'Months_Used'
             ]
-        ]
-        .to_string(index=False)
+
+        ].to_string(
+            index=False
+        )
+
     )
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# UPLOAD MONTHLY EMA FILE
+# STEP 9 – UPLOAD MONTHLY EMA FILE
 # ════════════════════════════════════════════════════════════════════════════
 
 monthly_file_name = (
+
     f'Monthly_EMA_Cross_for_{today_str}.csv'
+
 )
 
 
 github_put(
+
     monthly_file_name,
+
     monthly_crossovers
+
 )
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# DELETE OLD MONTHLY EMA FILES
+# STEP 10 – CLEAN OLD EMA FILES
 # ════════════════════════════════════════════════════════════════════════════
+
+print(
+    "\nCleaning old EMA files ..."
+)
+
+
+# Keep only latest historical file
 
 delete_old_github_files(
-    'Monthly_EMA_Cross_for_',
+
+    'espen_',
+
     keep=1
+
 )
+
+
+# Keep only latest daily EMA file
+
+delete_old_github_files(
+
+    'EMA_Cross_for_',
+
+    keep=1
+
+)
+
+
+# Keep only latest monthly EMA file
+
+delete_old_github_files(
+
+    'Monthly_EMA_Cross_for_',
+
+    keep=1
+
+)
+
+
 # ════════════════════════════════════════════════════════════════════════════
-# STEP 9 – REMOVE OLD JUNK CSV FILES
+# STEP 11 – REMOVE OLD JUNK CSV FILES
 # ════════════════════════════════════════════════════════════════════════════
 
 JUNK_PATTERNS = [
 
     r'^nepse_\w+\.csv$',
+
     r'^combined_data\.csv$',
+
     r'^valid_ema_crossovers\.csv$',
+
     r'^latest_valid_ema_crossovers\.csv$'
 
 ]
 
 
 headers = {
-    'Authorization': f'token {GH_TOKEN}'
+
+    'Authorization':
+        f'token {GH_TOKEN}',
+
+    'Accept':
+        'application/vnd.github+json'
+
 }
+
+
+print(
+    "\nChecking for old junk CSV files ..."
+)
 
 
 r = requests.get(
@@ -1379,14 +2021,17 @@ r = requests.get(
 
     headers=headers,
 
-    timeout=15
+    timeout=20
 
 )
 
 
 if r.status_code == 200:
 
-    for f in r.json():
+    repo_files = r.json()
+
+
+    for f in repo_files:
 
         if (
 
@@ -1397,11 +2042,18 @@ if r.status_code == 200:
             any(
 
                 re.match(
-                    p,
-                    f.get('name', '')
+
+                    pattern,
+
+                    f.get(
+                        'name',
+                        ''
+                    )
+
                 )
 
-                for p in JUNK_PATTERNS
+                for pattern
+                in JUNK_PATTERNS
 
             )
 
@@ -1413,16 +2065,18 @@ if r.status_code == 200:
 
                 headers=headers,
 
-                timeout=15,
+                timeout=20,
 
                 json={
 
                     'message':
                         f'Cleanup: remove {f["name"]}',
 
-                    'sha': f['sha'],
+                    'sha':
+                        f['sha'],
 
-                    'branch': 'main'
+                    'branch':
+                        'main'
 
                 }
 
@@ -1432,48 +2086,79 @@ if r.status_code == 200:
             if dr.status_code == 200:
 
                 print(
+
                     f"Removed from GitHub: "
                     f"{f['name']}"
+
                 )
 
             else:
 
                 print(
+
                     f"Could not remove "
                     f"{f['name']}: "
                     f"{dr.status_code}"
+
                 )
 
 
+else:
+
+    print(
+
+        f"Could not inspect GitHub repository: "
+        f"{r.status_code}"
+
+    )
+
+
 # ════════════════════════════════════════════════════════════════════════════
-# DONE
+# FINAL SUMMARY
 # ════════════════════════════════════════════════════════════════════════════
 
 print(
-    "\n" +
-    "=" * 80
+    "\n" + "=" * 100
 )
 
 print(
-    "DONE"
+    "PROCESS COMPLETED"
 )
 
 print(
-    "=" * 80
+    "=" * 100
+)
+
+
+print(
+    f"Daily EMA file:    {daily_file_name}"
 )
 
 print(
-    f"Daily EMA file:   {daily_file_name}"
+    f"Monthly EMA file:  {monthly_file_name}"
 )
 
 print(
-    f"Monthly EMA file: {monthly_file_name}"
+    f"Historical file:   {daily_history_file}"
 )
 
 print(
-    f"Historical file:  espen_{today_str}.csv"
+    f"Monthly history requirement: "
+    f"{MIN_MONTHS_REQUIRED} completed months"
 )
 
 print(
-    "=" * 80
+    "Monthly calculation: "
+    "EMA 10 vs EMA 25"
 )
+
+print(
+    "Current incomplete month: EXCLUDED"
+)
+
+print(
+    "=" * 100
+)
+
+print("DONE.")
+```
