@@ -1,4 +1,4 @@
-```python
+
 import subprocess
 import sys
 import os
@@ -2161,4 +2161,4 @@ print(
 )
 
 print("DONE.")
-```
+
