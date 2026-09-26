@@ -1,0 +1,51 @@
+Ticker,Stock Name,Sector,Today's Price,EPS (Trailing),P/E Ratio,P/B Ratio,DE,ROE,ROA,Net Profit % Change,Total Revenue % Change,Annualized EPS % Change,Book Value per Share % Change,Monthly Change (%),3-Month Change (%),Yearly Change (%),Score,Tier
+KBL,Kumari Bank,Commercial Banks,226.00,28.17,8.02,1.32,9.95,16.49,1.51,+76.81%,+31.89%,+32.61%,+7.74%,+5.66%,+7.11%,+20.47%,22,Strong
+BNT,Bottlers Nepal (Terai),Manufacturing And Processing,"12,001.00",544.86,22.03,3.46,0.94,15.7,8.08,+137.96%,+56.39%,+78.47%,+10.59%,+0.85%,+4.13%,+7.15%,21,Strong
+CYCL,CYC Nepal Laghubitta Bittiya Sanstha Limited,Microcredit,"1,630.00",110.66,14.73,4.56,6.62,30.93,4.06,+451.76%,+42.03%,+313.82%,+32.73%,+1.88%,+1.44%,+1.49%,21,Strong
+NLO,Nepal Lube Oil,Manufacturing And Processing,271.30,78.19,3.47,0.48,1.38,13.98,5.88,+143.06%,+75.31%,+62.04%,+10.21%,0.00%,+14.93%,+25.46%,21,Strong
+GILB,Global IME Laghubitta Bittiya Sanstha,Microcredit,"1,139.50",61.87,18.42,4.7,6.57,25.5,3.37,+82.66%,+34.93%,+36.99%,+12.98%,+4.95%,+2.11%,-5.16%,20,Strong
+JBLB,Jeevan Bikas Laghubitta Bittya Sanstha Ltd,Microcredit,"1,278.80",61.8,20.69,4.57,6.0,22.08,3.16,+72.62%,+36.09%,+29.47%,+9.68%,+2.39%,+1.49%,+2.72%,20,Strong
+NBL,Nepal Bank,Commercial Banks,292.00,30.63,9.53,1.01,10.46,10.65,0.93,+61.13%,+35.54%,+20.84%,+5.46%,+6.18%,+10.82%,+17.27%,20,Strong
+NTC,Nepal Doorsanchar Company,Telecom,906.00,46.47,19.5,1.64,0.36,8.44,6.18,+50.63%,+50.07%,+0.42%,+2.11%,+2.95%,+7.35%,+10.25%,20,Strong
+DDBL,Deprosc Laghubitta,Microcredit,861.00,48.15,17.88,3.8,5.38,21.22,3.33,+45.48%,+36.52%,+9.11%,+6.88%,+3.49%,+2.98%,+11.79%,19,Good
+FOWAD,Forward Community Microfinance Bittiya Sanstha Ltd.,Microcredit,900.00,52.14,17.26,3.23,6.23,18.72,2.59,+282.95%,+37.24%,+187.21%,+16.26%,-0.55%,-9.64%,-17.81%,19,Good
+GBBL,Garima Bikas Bank,Development Bank,454.00,28.04,16.19,2.56,9.59,15.82,1.49,+61.10%,+34.12%,+20.82%,+5.78%,+8.07%,+11.82%,+13.93%,19,Good
+GUFL,Gurkhas Finance Ltd.,Finance,496.40,25.28,19.64,2.96,6.68,15.1,1.97,+69.46%,+34.80%,+27.09%,+6.05%,-3.61%,-9.91%,-2.67%,19,Good
+ILBS,Infinity Laghubitta Bittiya Sanstha Limited,Microcredit,950.00,36.66,25.91,5.87,6.56,22.67,3.0,+140.64%,+48.50%,+80.48%,+15.46%,+10.59%,+4.42%,-21.10%,19,Good
+KMCDB,Kalika Laghubitta Bittiya Sanstha,Microcredit,828.00,27.4,30.22,4.63,6.22,15.33,2.12,+735.13%,+38.74%,+526.34%,+15.34%,+7.53%,+1.56%,-11.36%,19,Good
+NADEP,Nadep Laghubitta Bittiya Sanstha Ltd.,Microcredit,695.00,29.52,23.54,3.61,6.85,15.35,1.96,+120.25%,+42.45%,+65.19%,+18.06%,-0.71%,-6.06%,-12.03%,19,Good
+NMFBS,National Microfinance Bittiya Sanstha Ltd.,Microcredit,"1,200.00",58.59,20.48,4.3,7.18,20.98,2.57,+51.41%,+40.89%,+13.56%,+7.63%,+7.53%,+8.48%,+8.01%,19,Good
+SMPDA,Sampada Laghubitta Bittiya Sanstha Limited,Microcredit,750.00,32.52,23.06,4.31,7.89,18.7,2.1,+72.03%,+40.93%,+29.03%,+8.67%,+2.04%,-7.64%,-18.36%,19,Good
+SWBBL,Swabalamban Bikas Bank,Microcredit,703.30,35.41,19.86,2.91,5.64,14.64,2.21,+92.04%,+42.32%,+44.03%,+6.76%,+5.36%,-0.94%,-11.05%,19,Good
+LBBL,Lumbini Bikas Bank Ltd.,Development Bank,484.40,23.48,20.63,2.27,7.77,10.99,1.25,+51.51%,+32.91%,+13.63%,+4.05%,+2.17%,+0.50%,-5.21%,18,Good
+MHNL,Mountain Hydro Nepal Limited,Hydro Power,252.00,12.78,19.72,3.59,3.51,18.23,4.04,+108.12%,+57.32%,+56.09%,+90.89%,+4.22%,+0.40%,-0.71%,18,Good
+MKHL,Mai Khola Hydropower Limited,Hydro Power,505.00,13.83,36.51,4.42,1.21,12.1,5.48,+370.05%,+51.05%,+252.54%,+10.04%,+1.81%,+2.25%,-36.80%,18,Good
+NMB,NMB Bank,Commercial Banks,257.10,20.81,12.35,1.41,9.44,11.45,1.1,+49.33%,+31.64%,+12.00%,+3.42%,+7.13%,+7.44%,+11.03%,18,Good
+SADBL,Shangrila Development Bank,Development Bank,404.50,23.83,16.97,2.39,9.43,14.06,1.35,+83.67%,+40.37%,+37.75%,+6.74%,+4.42%,+5.82%,+10.74%,18,Good
+SBL,Siddhartha Bank,Commercial Banks,456.80,23.79,19.2,2.02,9.56,10.53,1.0,+74.67%,+36.19%,+31.01%,+4.23%,+10.66%,+16.68%,+36.15%,18,Good
+SCB,Standard Chartered Bank,Commercial Banks,657.20,28.38,23.16,2.91,6.94,12.57,1.58,+36.92%,+35.06%,+2.69%,+3.29%,+1.34%,+2.67%,+6.95%,18,Good
+SHPC,Sanima Mai Hydropower,Hydro Power,534.50,7.85,68.08,3.89,0.06,5.71,5.38,+116.60%,+64.72%,+62.45%,+3.08%,+3.95%,+7.91%,+1.06%,18,Good
+SLBBL,Swarojgar Laghu Bitta Bikas Bank,Microcredit,822.00,34.8,23.62,4.8,6.74,20.32,2.63,+48.28%,+38.03%,+11.21%,+7.00%,+4.04%,+0.86%,+2.96%,18,Good
+CBBL,Chhimek Laghubitta Bikas Bank,Microcredit,956.80,35.91,26.64,3.81,5.35,14.3,2.25,+43.30%,+36.79%,+7.47%,+3.77%,+2.32%,+5.09%,+7.64%,17,Good
+CZBIL,Citizen Bank International,Commercial Banks,213.40,13.53,15.77,1.33,9.79,8.43,0.78,+60.63%,+33.16%,+20.47%,+2.90%,+8.32%,+8.71%,+10.63%,17,Good
+EBL,Everest Bank,Commercial Banks,697.40,36.95,18.87,2.72,9.9,14.41,1.32,+52.28%,+33.87%,+14.21%,+5.00%,+2.24%,+6.20%,+12.99%,17,Good
+HEI,Himalayan Everest Insurance Limited,Non Life Insurance,473.00,13.51,35.0,1.61,1.01,6.31,3.15,+205.59%,+55.51%,+129.19%,+4.22%,-8.99%,-12.89%,-8.48%,17,Good
+ILI,IME Life Insurance Company Limited,Life Insurance,428.00,11.68,36.63,3.75,2.95,8.61,2.18,+58.80%,+46.84%,+19.10%,+3.17%,+4.14%,+0.94%,-2.41%,17,Good
+JBBL,Jyoti Bikas Bank,Development Bank,351.90,22.88,15.38,2.06,9.37,13.38,1.29,+59.81%,+39.14%,+19.86%,+4.61%,+5.71%,+3.20%,+6.99%,17,Good
+MATRI,Matribhumi Lagubitta Bittiya Sanstha Limited,Microcredit,727.10,45.13,16.11,5.0,12.35,31.03,2.32,+298.10%,+53.10%,+198.58%,+9.92%,-6.78%,-15.84%,-28.29%,17,Good
+MEN,Mountain Energy Nepal Limited,Hydro Power,653.00,25.52,25.59,4.33,0.62,16.93,10.45,+51.06%,+42.03%,+13.30%,+6.00%,+5.48%,+11.95%,+26.38%,17,Good
+MSLB,Mahuli Samudayik Laghubitta Sanstha Ltd.,Microcredit,"1,210.00",49.88,24.26,5.31,6.54,21.89,2.9,+57.38%,+36.82%,+18.03%,+8.34%,-0.41%,-1.71%,-11.96%,17,Good
+PCBL,Prime Commercial Bank,Commercial Banks,257.00,19.63,13.09,1.46,8.12,11.17,1.22,+33.12%,+32.64%,-0.16%,+2.64%,+7.22%,+9.55%,+12.01%,17,Good
+SAHAS,Sahas Urja Limited,Hydro Power,694.20,29.72,23.36,3.84,1.24,16.46,7.36,+14.92%,+21.88%,-13.81%,+2.17%,+1.49%,+8.00%,+31.46%,17,Good
+SANIMA,Sanima Bank,Commercial Banks,368.00,22.78,16.15,2.08,9.55,12.86,1.22,+51.06%,+33.75%,+13.29%,+4.56%,+2.13%,+8.15%,+15.44%,17,Good
+SMB,Support Microfinance Bittiya Sanstha Ltd.,Microcredit,"1,864.00",56.82,32.8,9.09,7.56,27.7,3.24,+62.84%,+36.36%,+22.13%,+11.87%,+6.03%,-4.85%,-7.83%,17,Good
+SMHL,Super Madi Hydropower Limited,Hydro Power,470.00,18.4,25.54,3.93,2.47,15.4,4.43,+74.46%,+42.07%,+30.84%,+7.03%,+5.52%,+13.96%,-36.76%,17,Good
+TPC,Terhathum Power Company Limited,Hydro Power,365.00,11.17,32.68,3.52,0.42,10.78,7.6,+41.93%,+39.99%,+6.44%,+3.17%,+2.53%,+1.96%,+6.73%,17,Good
+ADBL,Agriculture Development Bank,Commercial Banks,313.00,16.11,19.43,1.34,9.8,6.88,0.64,+88.72%,+35.79%,+50.37%,+1.52%,+4.51%,+1.72%,+5.30%,16,Good
+ALBSL,Asha Laghubitta Bittiya Sanstha Ltd,Microcredit,"1,174.40",32.63,35.99,6.72,7.78,18.68,2.13,+48.61%,+38.46%,+11.46%,+6.56%,+6.76%,+8.74%,+22.23%,16,Good
+API,Api Power,Hydro Power,334.80,15.06,22.24,2.8,1.05,12.6,6.15,+45.87%,+35.43%,+9.40%,+3.63%,+1.15%,-0.89%,+22.17%,16,Good
+AVYAN,Aviyan Laghubitta Bittiya Sanstha Limited,Microcredit,"1,060.00",57.04,18.58,6.68,8.35,35.93,3.84,+44.78%,+35.13%,+8.59%,+0.58%,+2.81%,+0.47%,+6.00%,16,Good
+FMDBL,First Micro Finance Development Bank,Microcredit,759.50,14.18,53.55,5.53,2.09,10.33,3.35,+67.73%,+30.60%,+25.80%,+4.35%,+1.27%,-1.11%,-8.61%,16,Good
+GBIME,Global Ime Bank,Commercial Banks,243.80,16.34,14.92,1.33,10.76,8.92,0.76,+41.49%,+35.16%,+6.12%,+2.58%,+6.09%,+8.08%,+8.42%,16,Good
+HURJA,Himalaya Urja Bikas Company Limited,Hydro Power,257.00,7.57,33.94,2.62,0.85,7.71,4.17,+153.17%,+40.65%,+89.88%,+4.90%,+10.06%,+8.12%,+13.92%,16,Good
+ICFC,ICFC Finance,Finance,595.00,22.33,26.65,3.14,10.69,11.79,1.01,+156.23%,+35.59%,+92.17%,+7.20%,+2.43%,-2.21%,-5.85%,16,Good
