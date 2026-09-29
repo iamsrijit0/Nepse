@@ -1,4 +1,3 @@
-
 import subprocess
 import sys
 import os
@@ -41,24 +40,21 @@ from joblib import Parallel, delayed
 # ════════════════════════════════════════════════════════════════════════════
 
 STANDARD_COLS = [
-    'Symbol',
-    'Date',
-    'Open',
-    'High',
-    'Low',
-    'Close',
-    'Percent Change',
-    'Volume',
-    '52High',
-    '52Low'
+    "Symbol",
+    "Date",
+    "Open",
+    "High",
+    "Low",
+    "Close",
+    "Percent Change",
+    "Volume",
+    "52High",
+    "52Low"
 ]
 
-GITHUB_REPO = 'iamsrijit0/Nepse'
+GITHUB_REPO = "iamsrijit0/Nepse"
 
 GH_TOKEN = os.getenv("GH_TOKEN")
-
-# Minimum number of COMPLETED monthly candles required
-MIN_MONTHS_REQUIRED = 36
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -66,9 +62,7 @@ MIN_MONTHS_REQUIRED = 36
 # ════════════════════════════════════════════════════════════════════════════
 
 if not GH_TOKEN:
-
     print("\nERROR: GH_TOKEN environment variable is not set.")
-
     raise SystemExit(1)
 
 
@@ -79,31 +73,26 @@ if not GH_TOKEN:
 def to_float(value):
 
     try:
-
         if value is None:
             return 0.0
 
         if isinstance(value, str):
-            value = value.replace(',', '').strip()
+            value = value.replace(",", "").strip()
 
         return float(value)
 
     except (TypeError, ValueError):
-
         return 0.0
 
 
 def clean_numeric_series(series):
 
     return pd.to_numeric(
-
         series
         .astype(str)
-        .str.replace(',', '', regex=False)
-        .replace('-', np.nan),
-
-        errors='coerce'
-
+        .str.replace(",", "", regex=False)
+        .replace("-", np.nan),
+        errors="coerce"
     )
 
 
@@ -133,7 +122,7 @@ today_price = request_obj.get_today_price()
 if isinstance(today_price, dict):
 
     content_data = today_price.get(
-        'content',
+        "content",
         []
     )
 
@@ -148,59 +137,54 @@ filtered_data = []
 for item in content_data:
 
     symbol = item.get(
-        'symbol',
-        ''
+        "symbol",
+        ""
     )
 
     date = item.get(
-        'businessDate',
-        ''
+        "businessDate",
+        ""
     )
 
-
     open_price = to_float(
-        item.get('openPrice')
+        item.get("openPrice")
     )
 
     high_price = to_float(
-        item.get('highPrice')
+        item.get("highPrice")
     )
 
     low_price = to_float(
-        item.get('lowPrice')
+        item.get("lowPrice")
     )
 
     close_price = to_float(
-        item.get('closePrice')
+        item.get("closePrice")
     )
 
     volume = to_float(
-        item.get('totalTradedQuantity')
+        item.get("totalTradedQuantity")
     )
 
     high52 = to_float(
-        item.get('fiftyTwoWeekHigh')
+        item.get("fiftyTwoWeekHigh")
     )
 
     low52 = to_float(
-        item.get('fiftyTwoWeekLow')
+        item.get("fiftyTwoWeekLow")
     )
 
 
     if open_price > 0:
 
         pct_change = (
-
             (
-                close_price
-                -
-                open_price
+                close_price - open_price
             )
             /
             open_price
             *
             100
-
         )
 
     else:
@@ -210,28 +194,28 @@ for item in content_data:
 
     filtered_data.append({
 
-        'Symbol': symbol,
+        "Symbol": symbol,
 
-        'Date': date,
+        "Date": date,
 
-        'Open': open_price,
+        "Open": open_price,
 
-        'High': high_price,
+        "High": high_price,
 
-        'Low': low_price,
+        "Low": low_price,
 
-        'Close': close_price,
+        "Close": close_price,
 
-        'Percent Change': round(
+        "Percent Change": round(
             pct_change,
             2
         ),
 
-        'Volume': volume,
+        "Volume": volume,
 
-        '52High': high52,
+        "52High": high52,
 
-        '52Low': low52
+        "52Low": low52
 
     })
 
@@ -250,14 +234,14 @@ if first.empty:
     raise SystemExit(1)
 
 
-first['Date'] = pd.to_datetime(
-    first['Date'],
-    errors='coerce'
+first["Date"] = pd.to_datetime(
+    first["Date"],
+    errors="coerce"
 )
 
 
 first = first.dropna(
-    subset=['Date']
+    subset=["Date"]
 )
 
 
@@ -279,81 +263,55 @@ print("=" * 90)
 def get_latest_espen_url():
 
     repo_url = (
-
-        f'https://github.com/'
-        f'{GITHUB_REPO}/tree/main'
-
+        f"https://github.com/"
+        f"{GITHUB_REPO}/tree/main"
     )
-
 
     response = requests.get(
-
         repo_url,
-
         timeout=30
-
     )
-
 
     response.raise_for_status()
 
-
     soup = BeautifulSoup(
-
         response.content,
-
-        'html.parser'
-
+        "html.parser"
     )
-
 
     files = {}
 
-
     for link in soup.find_all(
-        'a',
+        "a",
         href=True
     ):
 
-        href = link['href']
-
+        href = link["href"]
 
         if (
-
-            'espen_' in href
-
+            "espen_" in href
             and
-
-            href.endswith('.csv')
-
+            href.endswith(".csv")
         ):
 
             match = re.search(
-
-                r'espen_(\d{4}-\d{2}-\d{2})\.csv',
-
+                r"espen_(\d{4}-\d{2}-\d{2})\.csv",
                 href
-
             )
-
 
             if match:
 
                 file_date = match.group(1)
 
                 file_name = (
-                    f'espen_{file_date}.csv'
+                    f"espen_{file_date}.csv"
                 )
-
 
                 files[file_date] = (
-
-                    f'https://raw.githubusercontent.com/'
-                    f'{GITHUB_REPO}/main/'
-                    f'{file_name}'
-
+                    f"https://raw.githubusercontent.com/"
+                    f"{GITHUB_REPO}/main/"
+                    f"{file_name}"
                 )
-
 
     if not files:
 
@@ -361,17 +319,14 @@ def get_latest_espen_url():
             "No espen_ CSV file found in GitHub repository."
         )
 
-
     latest_date = max(
         files.keys()
     )
-
 
     print(
         f"Latest historical file: "
         f"espen_{latest_date}.csv"
     )
-
 
     return files[latest_date]
 
@@ -383,50 +338,37 @@ try:
 
     latest_url = get_latest_espen_url()
 
-
     raw = pd.read_csv(
         latest_url
     )
 
-
     for col in STANDARD_COLS:
 
         if col not in raw.columns:
-
             raw[col] = np.nan
-
 
     secondss = raw[
         STANDARD_COLS
     ].copy()
 
-
-    secondss['Date'] = pd.to_datetime(
-
-        secondss['Date'],
-
-        errors='coerce'
-
+    secondss["Date"] = pd.to_datetime(
+        secondss["Date"],
+        errors="coerce"
     )
-
 
     secondss = secondss.dropna(
-
-        subset=['Date']
-
+        subset=["Date"]
     )
-
 
     print(
         f"Historical rows loaded: "
         f"{len(secondss):,}"
     )
 
-
 except Exception as e:
 
     print(
-        f"WARNING: Could not load historical data."
+        "WARNING: Could not load historical data."
     )
 
     print(
@@ -445,16 +387,12 @@ print("=" * 90)
 
 
 frames = [
-
     df
-
     for df in [
         secondss,
         first
     ]
-
     if not df.empty
-
 ]
 
 
@@ -468,30 +406,22 @@ if not frames:
 
 
 combined_df = pd.concat(
-
     frames,
-
     ignore_index=True
-
 )
 
 
-combined_df['Date'] = pd.to_datetime(
-
-    combined_df['Date'],
-
-    errors='coerce'
-
+combined_df["Date"] = pd.to_datetime(
+    combined_df["Date"],
+    errors="coerce"
 )
 
 
 combined_df = combined_df.dropna(
-
     subset=[
-        'Symbol',
-        'Date'
+        "Symbol",
+        "Date"
     ]
-
 )
 
 
@@ -504,18 +434,15 @@ combined_df = (
     combined_df
 
     .sort_values(
-        'Date'
+        "Date"
     )
 
     .drop_duplicates(
-
         subset=[
-            'Symbol',
-            'Date'
+            "Symbol",
+            "Date"
         ],
-
-        keep='last'
-
+        keep="last"
     )
 
 )
@@ -530,42 +457,40 @@ live_52 = (
     first
 
     .drop_duplicates(
-        'Symbol',
-        keep='last'
+        "Symbol",
+        keep="last"
     )
 
     .set_index(
-        'Symbol'
+        "Symbol"
     )
 
 )
 
 
-for symbol in combined_df['Symbol'].unique():
+for symbol in combined_df["Symbol"].unique():
 
     if symbol in live_52.index:
 
         mask = (
-            combined_df['Symbol']
+            combined_df["Symbol"]
             == symbol
         )
 
-
         combined_df.loc[
             mask,
-            '52High'
+            "52High"
         ] = live_52.loc[
             symbol,
-            '52High'
+            "52High"
         ]
 
-
         combined_df.loc[
             mask,
-            '52Low'
+            "52Low"
         ] = live_52.loc[
             symbol,
-            '52Low'
+            "52Low"
         ]
 
 
@@ -576,8 +501,8 @@ for symbol in combined_df['Symbol'].unique():
 combined_df = combined_df.sort_values(
 
     [
-        'Symbol',
-        'Date'
+        "Symbol",
+        "Date"
     ]
 
 ).reset_index(
@@ -592,11 +517,9 @@ combined_df = combined_df.sort_values(
 combined_for_upload = combined_df.copy()
 
 
-combined_for_upload['Date'] = (
-
-    combined_for_upload['Date']
+combined_for_upload["Date"] = (
+    combined_for_upload["Date"]
     .apply(format_date)
-
 )
 
 
@@ -612,7 +535,7 @@ print(
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# GITHUB UPLOAD
+# GITHUB UPLOAD FUNCTION
 # ════════════════════════════════════════════════════════════════════════════
 
 def github_put(
@@ -624,91 +547,61 @@ def github_put(
         f"\nUploading {file_name} ..."
     )
 
-
     csv_content = df.to_csv(
         index=False
     )
 
-
     encoded = base64.b64encode(
-
         csv_content.encode()
-
     ).decode()
 
-
     url = (
-
-        f'https://api.github.com/repos/'
-        f'{GITHUB_REPO}/contents/'
-        f'{file_name}'
-
+        f"https://api.github.com/repos/"
+        f"{GITHUB_REPO}/contents/"
+        f"{file_name}"
     )
-
 
     headers = {
-
-        'Authorization':
-            f'token {GH_TOKEN}',
-
-        'Accept':
-            'application/vnd.github+json'
-
+        "Authorization": f"token {GH_TOKEN}",
+        "Accept": "application/vnd.github+json"
     }
 
-
     existing = requests.get(
-
         url,
-
         headers=headers,
-
         timeout=30
-
     )
 
-
     sha = None
-
 
     if existing.status_code == 200:
 
         sha = existing.json().get(
-            'sha'
+            "sha"
         )
-
 
     payload = {
 
-        'message':
-            f'Update {file_name}',
+        "message":
+            f"Update {file_name}",
 
-        'content':
+        "content":
             encoded,
 
-        'branch':
-            'main'
+        "branch":
+            "main"
 
     }
 
-
     if sha:
-
-        payload['sha'] = sha
-
+        payload["sha"] = sha
 
     response = requests.put(
-
         url,
-
         headers=headers,
-
         json=payload,
-
         timeout=30
-
     )
-
 
     if response.status_code in (
         200,
@@ -745,33 +638,24 @@ def delete_old_github_files(
 
     headers = {
 
-        'Authorization':
-            f'token {GH_TOKEN}',
+        "Authorization":
+            f"token {GH_TOKEN}",
 
-        'Accept':
-            'application/vnd.github+json'
+        "Accept":
+            "application/vnd.github+json"
 
     }
 
-
     url = (
-
-        f'https://api.github.com/repos/'
-        f'{GITHUB_REPO}/contents/'
-
+        f"https://api.github.com/repos/"
+        f"{GITHUB_REPO}/contents/"
     )
-
 
     response = requests.get(
-
         url,
-
         headers=headers,
-
         timeout=30
-
     )
-
 
     if response.status_code != 200:
 
@@ -782,9 +666,7 @@ def delete_old_github_files(
 
         return
 
-
     files = response.json()
-
 
     matching = [
 
@@ -799,61 +681,54 @@ def delete_old_github_files(
             and
 
             f.get(
-                'name',
-                ''
+                "name",
+                ""
             ).startswith(prefix)
 
             and
 
             f.get(
-                'name',
-                ''
-            ).endswith('.csv')
+                "name",
+                ""
+            ).endswith(".csv")
 
         )
 
     ]
 
-
     matching.sort(
-
-        key=lambda x: x['name'],
-
+        key=lambda x: x["name"],
         reverse=True
-
     )
-
 
     old_files = matching[
         keep:
     ]
 
-
     for file_info in old_files:
 
         delete_response = requests.delete(
 
-            file_info['url'],
+            file_info["url"],
 
             headers=headers,
 
             json={
 
-                'message':
-                    f'Cleanup {file_info["name"]}',
+                "message":
+                    f"Cleanup {file_info['name']}",
 
-                'sha':
-                    file_info['sha'],
+                "sha":
+                    file_info["sha"],
 
-                'branch':
-                    'main'
+                "branch":
+                    "main"
 
             },
 
             timeout=30
 
         )
-
 
         if delete_response.status_code == 200:
 
@@ -880,18 +755,14 @@ nepal_now = pd.Timestamp.now(
 
 
 nepal_today = (
-
     nepal_now
-
     .normalize()
-
     .tz_localize(None)
-
 )
 
 
 today_str = nepal_today.strftime(
-    '%Y-%m-%d'
+    "%Y-%m-%d"
 )
 
 
@@ -906,61 +777,80 @@ print(
 # ════════════════════════════════════════════════════════════════════════════
 
 historical_file = (
-
-    f'espen_{today_str}.csv'
-
+    f"espen_{today_str}.csv"
 )
 
 
 github_put(
-
     historical_file,
-
     combined_for_upload
-
 )
 
 
 # ════════════════════════════════════════════════════════════════════════════
 # STEP 5
-# DAILY EMA 20 / 50
+# CREATE 2-TRADING-DAY CANDLES
 # ════════════════════════════════════════════════════════════════════════════
 
 print("\n" + "=" * 90)
-print("STEP 5 - DAILY EMA 20 / EMA 50")
+print("STEP 5 - CREATING 2-TRADING-DAY CANDLES")
 print("=" * 90)
 
 
-daily_data = combined_df.copy()
+two_day_source = combined_df.copy()
 
 
 for col in [
-    'Open',
-    'High',
-    'Low',
-    'Close',
-    'Volume'
+    "Open",
+    "High",
+    "Low",
+    "Close",
+    "Volume"
 ]:
 
-    daily_data[col] = clean_numeric_series(
-
-        daily_data[col]
-
+    two_day_source[col] = clean_numeric_series(
+        two_day_source[col]
     )
 
 
-daily_data = daily_data.dropna(
-
+two_day_source = two_day_source.dropna(
     subset=[
-        'Symbol',
-        'Date',
-        'Close'
+        "Symbol",
+        "Date",
+        "Close"
     ]
-
 )
 
 
-def process_daily_symbol(
+two_day_source = two_day_source.sort_values(
+    [
+        "Symbol",
+        "Date"
+    ]
+)
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# IMPORTANT
+#
+# We DO NOT use calendar-day resampling.
+#
+# We use ACTUAL rows from the CSV.
+#
+# Example:
+#
+# Trading Day 1 + Trading Day 2 = Candle 1
+# Trading Day 3 + Trading Day 4 = Candle 2
+# Trading Day 5 + Trading Day 6 = Candle 3
+#
+# Weekend / holiday = NOT counted.
+#
+# If a symbol has an odd number of trading rows, the final single day
+# is NOT used because it is not a complete 2-trading-day candle.
+# ════════════════════════════════════════════════════════════════════════════
+
+
+def make_two_day_data(
     symbol,
     group
 ):
@@ -968,64 +858,357 @@ def process_daily_symbol(
     group = (
 
         group
-        .sort_values('Date')
+
+        .sort_values(
+            "Date"
+        )
+
         .copy()
-        .reset_index(drop=True)
+
+        .reset_index(
+            drop=True
+        )
 
     )
 
 
+    # Need at least 2 actual trading days
+    if len(group) < 2:
+        return pd.DataFrame()
+
+
+    # ------------------------------------------------------------
+    # Keep only COMPLETE pairs
+    # ------------------------------------------------------------
+
+    complete_count = (
+        len(group) // 2
+    ) * 2
+
+    group = group.iloc[
+        :complete_count
+    ].copy()
+
+
+    if len(group) < 2:
+        return pd.DataFrame()
+
+
+    # ------------------------------------------------------------
+    # Create sequential 2-day groups
+    #
+    # 0,1   -> pair 1
+    # 2,3   -> pair 2
+    # 4,5   -> pair 3
+    # ------------------------------------------------------------
+
+    group["_2Day_Group"] = (
+        np.arange(
+            len(group)
+        ) // 2
+    )
+
+
+    two_day_rows = []
+
+
+    for pair_number, pair in group.groupby(
+        "_2Day_Group",
+        sort=True
+    ):
+
+        pair = pair.sort_values(
+            "Date"
+        )
+
+
+        # Safety: every candle MUST contain exactly 2 rows
+        if len(pair) != 2:
+            continue
+
+
+        first_day = pair.iloc[0]
+        second_day = pair.iloc[1]
+
+
+        two_day_rows.append({
+
+            "Symbol":
+                symbol,
+
+            # The candle date is the SECOND
+            # actual trading date
+            "Date":
+                second_day["Date"],
+
+            # First trading day's Open
+            "Open":
+                first_day["Open"],
+
+            # Highest price over both days
+            "High":
+                pair["High"].max(),
+
+            # Lowest price over both days
+            "Low":
+                pair["Low"].min(),
+
+            # Second trading day's Close
+            "Close":
+                second_day["Close"],
+
+            # Total volume over both days
+            "Volume":
+                pair["Volume"].sum(),
+
+            # Useful verification fields
+            "First_Trading_Date":
+                first_day["Date"],
+
+            "Second_Trading_Date":
+                second_day["Date"],
+
+            "Trading_Days":
+                2
+
+        })
+
+
+    return pd.DataFrame(
+        two_day_rows
+    )
+
+
+two_day_results = Parallel(
+    n_jobs=-1
+)(
+    delayed(
+        make_two_day_data
+    )(
+        symbol,
+        group
+    )
+
+    for symbol, group
+    in two_day_source.groupby(
+        "Symbol"
+    )
+)
+
+
+two_day_results = [
+    x
+    for x in two_day_results
+    if not x.empty
+]
+
+
+if two_day_results:
+
+    two_day_df = pd.concat(
+        two_day_results,
+        ignore_index=True
+    )
+
+else:
+
+    two_day_df = pd.DataFrame()
+
+
+if two_day_df.empty:
+
+    print(
+        "ERROR: Could not create 2-day candles."
+    )
+
+    raise SystemExit(1)
+
+
+two_day_df = two_day_df.sort_values(
+    [
+        "Symbol",
+        "Date"
+    ]
+).reset_index(
+    drop=True
+)
+
+
+print(
+    f"2-day candles created: "
+    f"{len(two_day_df):,}"
+)
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# VERIFY 2-DAY CANDLES
+# ════════════════════════════════════════════════════════════════════════════
+
+print(
+    "\n2-DAY CANDLE VALIDATION:"
+)
+
+
+invalid_two_day = two_day_df[
+    two_day_df["Trading_Days"] != 2
+]
+
+
+if not invalid_two_day.empty:
+
+    print(
+        "ERROR: Invalid 2-day candle detected."
+    )
+
+    raise SystemExit(1)
+
+
+print(
+    "Every generated candle contains exactly "
+    "2 actual trading days."
+)
+
+
+# Verify the candle date is an actual CSV date
+
+actual_csv_dates = set(
+    two_day_source["Date"]
+    .dt.normalize()
+    .unique()
+)
+
+
+two_day_dates = set(
+    two_day_df["Date"]
+    .dt.normalize()
+    .unique()
+)
+
+
+invalid_dates = (
+    two_day_dates
+    -
+    actual_csv_dates
+)
+
+
+if invalid_dates:
+
+    print(
+        "ERROR: Artificial dates detected!"
+    )
+
+    print(
+        invalid_dates
+    )
+
+    raise SystemExit(1)
+
+
+print(
+    "DATE VALIDATION PASSED."
+)
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# STEP 6
+# 2-DAY EMA 20 / EMA 50
+# ════════════════════════════════════════════════════════════════════════════
+
+print("\n" + "=" * 90)
+print("STEP 6 - 2-DAY EMA 20 / EMA 50")
+print("=" * 90)
+
+
+def process_two_day_symbol(
+    symbol,
+    group
+):
+
+    group = (
+
+        group
+
+        .sort_values(
+            "Date"
+        )
+
+        .copy()
+
+        .reset_index(
+            drop=True
+        )
+
+    )
+
+
+    # EMA 50 requires at least 50 two-day candles
     if len(group) < 50:
 
         return pd.DataFrame()
 
 
+    # ════════════════════════════════════════════════════════════════════════
     # EMA 20
+    # ════════════════════════════════════════════════════════════════════════
 
-    group['EMA_20'] = (
+    group["EMA_20"] = (
 
-        group['Close']
+        group["Close"]
+
         .ewm(
             span=20,
             adjust=False,
             min_periods=20
         )
+
         .mean()
 
     )
 
 
+    # ════════════════════════════════════════════════════════════════════════
     # EMA 50
+    # ════════════════════════════════════════════════════════════════════════
 
-    group['EMA_50'] = (
+    group["EMA_50"] = (
 
-        group['Close']
+        group["Close"]
+
         .ewm(
             span=50,
             adjust=False,
             min_periods=50
         )
+
         .mean()
 
     )
 
 
+    # ════════════════════════════════════════════════════════════════════════
     # RSI 14
+    #
+    # Calculated using 2-day candles
+    # ════════════════════════════════════════════════════════════════════════
 
-    delta = group['Close'].diff()
+    delta = group["Close"].diff()
 
 
     gain = (
 
         delta
+
         .where(
             delta > 0,
             0
         )
+
         .rolling(
             14,
             min_periods=14
         )
+
         .mean()
 
     )
@@ -1034,14 +1217,17 @@ def process_daily_symbol(
     loss = (
 
         -delta
+
         .where(
             delta < 0,
             0
         )
+
         .rolling(
             14,
             min_periods=14
         )
+
         .mean()
 
     )
@@ -1050,7 +1236,7 @@ def process_daily_symbol(
     rs = gain / loss
 
 
-    group['RSI'] = (
+    group["RSI"] = (
 
         100
         -
@@ -1063,74 +1249,153 @@ def process_daily_symbol(
     )
 
 
-    # 30 day average volume
+    # ════════════════════════════════════════════════════════════════════════
+    # 30-CANDLE AVERAGE VOLUME
+    #
+    # Each candle = 2 trading days
+    # Therefore approximately 60 trading days.
+    # ════════════════════════════════════════════════════════════════════════
 
-    group['30D_Avg_Volume'] = (
+    group["30_2Day_Avg_Volume"] = (
 
-        group['Volume']
+        group["Volume"]
+
         .rolling(
             30,
             min_periods=30
         )
+
         .mean()
 
     )
 
 
-    # EMA slopes
+    # ════════════════════════════════════════════════════════════════════════
+    # EMA SLOPES
+    #
+    # 5 two-day candles = approximately 10 trading days
+    # ════════════════════════════════════════════════════════════════════════
 
-    group['Slope_20'] = (
+    group["Slope_20"] = (
 
-        group['EMA_20']
+        group["EMA_20"]
         .diff(5)
-        / 5
+        /
+        5
 
     )
 
 
-    group['Slope_50'] = (
+    group["Slope_50"] = (
 
-        group['EMA_50']
+        group["EMA_50"]
         .diff(5)
-        / 5
+        /
+        5
 
     )
 
 
-    # Bullish crossover
+    # ════════════════════════════════════════════════════════════════════════
+    # PREVIOUS EMA VALUES
+    # ════════════════════════════════════════════════════════════════════════
 
-    group['Crossover'] = (
+    group["Previous_EMA_20"] = (
+        group["EMA_20"].shift(1)
+    )
 
-        (group['EMA_20'] > group['EMA_50'])
+
+    group["Previous_EMA_50"] = (
+        group["EMA_50"].shift(1)
+    )
+
+
+    # ════════════════════════════════════════════════════════════════════════
+    # EMA DIFFERENCE
+    # ════════════════════════════════════════════════════════════════════════
+
+    group["EMA_Difference"] = (
+
+        group["EMA_20"]
+        -
+        group["EMA_50"]
+
+    )
+
+
+    # ════════════════════════════════════════════════════════════════════════
+    # EMA GAP %
+    # ════════════════════════════════════════════════════════════════════════
+
+    group["EMA_Gap_%"] = np.where(
+
+        group["EMA_50"] != 0,
+
+        (
+            group["EMA_Difference"]
+            /
+            group["EMA_50"]
+            *
+            100
+        ),
+
+        np.nan
+
+    )
+
+
+    # ════════════════════════════════════════════════════════════════════════
+    # BULLISH 2-DAY EMA CROSSOVER
+    #
+    # Previous 2-day candle:
+    #
+    # EMA20 <= EMA50
+    #
+    # Current 2-day candle:
+    #
+    # EMA20 > EMA50
+    # ════════════════════════════════════════════════════════════════════════
+
+    group["Two_Day_Crossover"] = (
+
+        (
+            group["EMA_20"]
+            >
+            group["EMA_50"]
+        )
 
         &
 
         (
-            group['EMA_20'].shift(1)
+            group["Previous_EMA_20"]
             <=
-            group['EMA_50'].shift(1)
+            group["Previous_EMA_50"]
         )
 
     )
 
 
-    # Existing filters
+    # ════════════════════════════════════════════════════════════════════════
+    # EXISTING FILTERS
+    #
+    # These are now calculated on 2-day candles.
+    # ════════════════════════════════════════════════════════════════════════
 
     valid = group[
 
-        group['Crossover']
+        group["Two_Day_Crossover"]
 
         &
 
         (
-            group['Slope_20']
+            group["Slope_20"]
             >
-            group['Slope_50']
+            group["Slope_50"]
         )
 
         &
 
-        group['RSI'].between(
+        group["RSI"].between(
             30,
             70
         )
@@ -1138,25 +1403,27 @@ def process_daily_symbol(
         &
 
         (
-            group['Volume']
+            group["Volume"]
             >=
-            0.3 *
-            group['30D_Avg_Volume']
+            0.3
+            *
+            group["30_2Day_Avg_Volume"]
         )
 
         &
 
         (
-            group['Close']
+            group["Close"]
             >
-            group['Close']
+            group["Close"]
             .rolling(
                 60,
                 min_periods=60
             )
             .max()
             .shift(1)
-            * 0.95
+            *
+            0.95
         )
 
     ].copy()
@@ -1165,58 +1432,58 @@ def process_daily_symbol(
     return valid
 
 
-daily_results = Parallel(
+two_day_ema_results = Parallel(
     n_jobs=-1
 )(
-
     delayed(
-        process_daily_symbol
+        process_two_day_symbol
     )(
         symbol,
         group
     )
 
     for symbol, group
-    in daily_data.groupby(
-        'Symbol'
+    in two_day_df.groupby(
+        "Symbol"
     )
-
 )
 
 
-daily_results = [
+two_day_ema_results = [
 
     x
 
-    for x in daily_results
+    for x in two_day_ema_results
 
     if not x.empty
 
 ]
 
 
-if daily_results:
+if two_day_ema_results:
 
-    daily_crossovers = pd.concat(
+    two_day_crossovers = pd.concat(
 
-        daily_results,
+        two_day_ema_results,
 
         ignore_index=True
 
     )
 
 
-    daily_crossovers = (
+    # Keep the latest confirmed crossover for each symbol
 
-        daily_crossovers
+    two_day_crossovers = (
+
+        two_day_crossovers
 
         .sort_values(
-            'Date',
+            "Date",
             ascending=False
         )
 
         .drop_duplicates(
-            'Symbol'
+            "Symbol"
         )
 
         .reset_index(
@@ -1227,33 +1494,78 @@ if daily_results:
 
 else:
 
-    daily_crossovers = pd.DataFrame()
+    two_day_crossovers = pd.DataFrame()
 
 
-print(
-    "\nDAILY EMA CROSSOVERS:"
-)
+# ════════════════════════════════════════════════════════════════════════════
+# STEP 7
+# DISPLAY 2-DAY EMA CROSSOVERS
+# ════════════════════════════════════════════════════════════════════════════
+
+print("\n" + "=" * 90)
+print("STEP 7 - 2-DAY EMA CROSSOVER RESULTS")
+print("=" * 90)
 
 
-if daily_crossovers.empty:
+if two_day_crossovers.empty:
 
     print(
-        "No daily EMA crossover found."
+        "No confirmed 2-day EMA crossover found."
     )
 
 else:
 
     print(
+        "\nCONFIRMED 2-DAY EMA 20 / EMA 50 CROSSOVERS:"
+    )
 
-        daily_crossovers[
-            [
-                'Symbol',
-                'Date',
-                'Close',
-                'EMA_20',
-                'EMA_50',
-                'RSI'
-            ]
+
+    display_columns = [
+
+        "Symbol",
+
+        "Date",
+
+        "First_Trading_Date",
+
+        "Second_Trading_Date",
+
+        "Close",
+
+        "EMA_20",
+
+        "EMA_50",
+
+        "Previous_EMA_20",
+
+        "Previous_EMA_50",
+
+        "EMA_Difference",
+
+        "EMA_Gap_%",
+
+        "RSI"
+
+    ]
+
+
+    available_display_columns = [
+
+        col
+
+        for col
+        in display_columns
+
+        if col
+        in two_day_crossovers.columns
+
+    ]
+
+
+    print(
+
+        two_day_crossovers[
+            available_display_columns
         ].to_string(
             index=False
         )
@@ -1261,661 +1573,24 @@ else:
     )
 
 
-daily_file = (
-
-    f'EMA_Cross_for_{today_str}.csv'
-
-)
-
-
-github_put(
-
-    daily_file,
-
-    daily_crossovers
-
-)
-
-
-# ════════════════════════════════════════════════════════════════════════════
-# STEP 6
-# CREATE MONTHLY DATA USING ONLY ACTUAL CSV DATES
-# ════════════════════════════════════════════════════════════════════════════
-
-print("\n" + "=" * 90)
-print("STEP 6 - MONTHLY DATA FROM ACTUAL CSV TRADING DATES")
-print("=" * 90)
-
-
-monthly_source = combined_df.copy()
-
-
-for col in [
-    'Open',
-    'High',
-    'Low',
-    'Close',
-    'Volume'
-]:
-
-    monthly_source[col] = clean_numeric_series(
-
-        monthly_source[col]
-
-    )
-
-
-monthly_source = monthly_source.dropna(
-
-    subset=[
-        'Symbol',
-        'Date',
-        'Close'
-    ]
-
-)
-
-
-monthly_source = monthly_source.sort_values(
-
-    [
-        'Symbol',
-        'Date'
-    ]
-
-)
-
-
-# ════════════════════════════════════════════════════════════════════════════
-# IMPORTANT:
-#
-# We DO NOT use:
-#
-#     resample('ME')
-#
-# because that creates a calendar month-end date.
-#
-# Instead:
-#
-# 1. Group actual CSV rows by year/month.
-# 2. Aggregate those actual rows.
-# 3. Use the LAST ACTUAL DATE in the CSV as the monthly Date.
-#
-# Therefore a monthly Date can ONLY be a date that exists in the CSV.
-# ════════════════════════════════════════════════════════════════════════════
-
-
-def make_monthly_data(
-    symbol,
-    group
-):
-
-    group = (
-
-        group
-        .sort_values('Date')
-        .copy()
-
-    )
-
-
-    # ------------------------------------------------------------
-    # Remove current incomplete month
-    # ------------------------------------------------------------
-
-    group = group[
-
-        ~(
-
-            (group['Date'].dt.year
-             == nepal_today.year)
-
-            &
-
-            (group['Date'].dt.month
-             == nepal_today.month)
-
-        )
-
-    ].copy()
-
-
-    if group.empty:
-
-        return pd.DataFrame()
-
-
-    # ------------------------------------------------------------
-    # Create year/month grouping WITHOUT resample
-    # ------------------------------------------------------------
-
-    group['_Year'] = (
-        group['Date'].dt.year
-    )
-
-    group['_Month'] = (
-        group['Date'].dt.month
-    )
-
-
-    monthly_rows = []
-
-
-    for (
-        year,
-        month
-    ), month_group in group.groupby(
-
-        [
-            '_Year',
-            '_Month'
-        ],
-
-        sort=True
-
-    ):
-
-        month_group = month_group.sort_values(
-            'Date'
-        )
-
-
-        # ========================================================
-        # THIS IS THE CRITICAL PART
-        #
-        # monthly_date = LAST ACTUAL DATE IN CSV
-        #
-        # No artificial month-end date.
-        # ========================================================
-
-        actual_last_date = (
-
-            month_group['Date']
-            .iloc[-1]
-
-        )
-
-
-        monthly_rows.append({
-
-            'Symbol':
-                symbol,
-
-            'Date':
-                actual_last_date,
-
-            'Open':
-                month_group['Open'].iloc[0],
-
-            'High':
-                month_group['High'].max(),
-
-            'Low':
-                month_group['Low'].min(),
-
-            'Close':
-                month_group['Close'].iloc[-1],
-
-            'Volume':
-                month_group['Volume'].sum()
-
-        })
-
-
-    return pd.DataFrame(
-        monthly_rows
-    )
-
-
-monthly_results = Parallel(
-    n_jobs=-1
-)(
-
-    delayed(
-        make_monthly_data
-    )(
-        symbol,
-        group
-    )
-
-    for symbol, group
-    in monthly_source.groupby(
-        'Symbol'
-    )
-
-)
-
-
-monthly_results = [
-
-    x
-
-    for x in monthly_results
-
-    if not x.empty
-
-]
-
-
-if monthly_results:
-
-    monthly_df = pd.concat(
-
-        monthly_results,
-
-        ignore_index=True
-
-    )
-
-else:
-
-    monthly_df = pd.DataFrame()
-
-
-# ════════════════════════════════════════════════════════════════════════════
-# SORT MONTHLY DATA
-# ════════════════════════════════════════════════════════════════════════════
-
-if monthly_df.empty:
-
-    print(
-        "ERROR: No completed monthly data available."
-    )
-
-    monthly_crossovers = pd.DataFrame()
-
-else:
-
-    monthly_df = monthly_df.sort_values(
-
-        [
-            'Symbol',
-            'Date'
-        ]
-
-    ).reset_index(
-        drop=True
-    )
-
-
-    # ════════════════════════════════════════════════════════════════════════
-    # VERIFY EVERY MONTHLY DATE EXISTS IN ORIGINAL CSV
-    # ════════════════════════════════════════════════════════════════════════
-
-    actual_csv_dates = set(
-
-        monthly_source['Date']
-        .dt.normalize()
-        .unique()
-
-    )
-
-
-    monthly_dates = set(
-
-        monthly_df['Date']
-        .dt.normalize()
-        .unique()
-
-    )
-
-
-    invalid_dates = (
-
-        monthly_dates
-        -
-        actual_csv_dates
-
-    )
-
-
-    if invalid_dates:
-
-        print(
-            "\nERROR: Artificial monthly dates detected!"
-        )
-
-        print(
-            invalid_dates
-        )
-
-        raise SystemExit(1)
-
-
-    print(
-        "DATE VALIDATION PASSED:"
-    )
-
-    print(
-        "Every monthly Date exists "
-        "in the original CSV history."
-    )
-
-
-    # ════════════════════════════════════════════════════════════════════════
-    # SHOW SAMPLE MONTHLY DATES
-    # ════════════════════════════════════════════════════════════════════════
-
-    print(
-        "\nSample monthly dates:"
-    )
-
-
-    sample = (
-
-        monthly_df
-
-        .groupby('Symbol')
-
-        .head(12)
-
-        .tail(20)
-
-        [
-            [
-                'Symbol',
-                'Date',
-                'Close'
-            ]
-        ]
-
-    )
-
-
-    if not sample.empty:
-
-        print(
-            sample.to_string(
-                index=False
-            )
-        )
-
-
-    # ════════════════════════════════════════════════════════════════════════
-    # STEP 7
-    # MONTHLY EMA 10 / EMA 25
-    # ════════════════════════════════════════════════════════════════════════
-
-    print("\n" + "=" * 90)
-    print("STEP 7 - MONTHLY EMA 10 / EMA 25")
-    print("=" * 90)
-
-
-    def process_monthly_symbol(
-        symbol,
-        group
-    ):
-
-        group = (
-
-            group
-            .sort_values('Date')
-            .copy()
-            .reset_index(drop=True)
-
-        )
-
-
-        # Need at least 36 completed months
-
-        if len(group) < MIN_MONTHS_REQUIRED:
-
-            return pd.DataFrame()
-
-
-        # Number of completed monthly observations
-
-        group['Months_Used'] = (
-
-            np.arange(
-                1,
-                len(group) + 1
-            )
-
-        )
-
-
-        # ═══════════════════════════════════════════════════════════
-        # EMA 10
-        # ═══════════════════════════════════════════════════════════
-
-        group['EMA_10'] = (
-
-            group['Close']
-
-            .ewm(
-
-                span=10,
-
-                adjust=False,
-
-                min_periods=10
-
-            )
-
-            .mean()
-
-        )
-
-
-        # ═══════════════════════════════════════════════════════════
-        # EMA 25
-        # ═══════════════════════════════════════════════════════════
-
-        group['EMA_25'] = (
-
-            group['Close']
-
-            .ewm(
-
-                span=25,
-
-                adjust=False,
-
-                min_periods=25
-
-            )
-
-            .mean()
-
-        )
-
-
-        # ═══════════════════════════════════════════════════════════
-        # PREVIOUS MONTH VALUES
-        # ═══════════════════════════════════════════════════════════
-
-        group['Previous_EMA_10'] = (
-
-            group['EMA_10']
-            .shift(1)
-
-        )
-
-
-        group['Previous_EMA_25'] = (
-
-            group['EMA_25']
-            .shift(1)
-
-        )
-
-
-        # ═══════════════════════════════════════════════════════════
-        # EMA DIFFERENCE
-        # ═══════════════════════════════════════════════════════════
-
-        group['EMA_Difference'] = (
-
-            group['EMA_10']
-            -
-            group['EMA_25']
-
-        )
-
-
-        # ═══════════════════════════════════════════════════════════
-        # EMA GAP %
-        # ═══════════════════════════════════════════════════════════
-
-        group['EMA_Gap_%'] = np.where(
-
-            group['EMA_25'] != 0,
-
-            (
-
-                group['EMA_Difference']
-                /
-                group['EMA_25']
-                *
-                100
-
-            ),
-
-            np.nan
-
-        )
-
-
-        # ═══════════════════════════════════════════════════════════
-        # BULLISH MONTHLY CROSSOVER
-        #
-        # Previous ACTUAL completed month:
-        #
-        # EMA10 <= EMA25
-        #
-        # Current ACTUAL completed month:
-        #
-        # EMA10 > EMA25
-        # ═══════════════════════════════════════════════════════════
-
-        group['Monthly_Crossover'] = (
-
-            (
-
-                group['EMA_10']
-                >
-                group['EMA_25']
-
-            )
-
-            &
-
-            (
-
-                group['Previous_EMA_10']
-                <=
-                group['Previous_EMA_25']
-
-            )
-
-        )
-
-
-        # Keep only crossover rows
-
-        valid = group[
-
-            group['Monthly_Crossover']
-
-        ].copy()
-
-
-        return valid
-
-
-    monthly_results = Parallel(
-        n_jobs=-1
-    )(
-
-        delayed(
-            process_monthly_symbol
-        )(
-            symbol,
-            group
-        )
-
-        for symbol, group
-        in monthly_df.groupby(
-            'Symbol'
-        )
-
-    )
-
-
-    monthly_results = [
-
-        x
-
-        for x in monthly_results
-
-        if not x.empty
-
-    ]
-
-
-    if monthly_results:
-
-        monthly_crossovers = pd.concat(
-
-            monthly_results,
-
-            ignore_index=True
-
-        )
-
-
-        monthly_crossovers = (
-
-            monthly_crossovers
-
-            .sort_values(
-
-                'Date',
-
-                ascending=False
-
-            )
-
-            .drop_duplicates(
-
-                'Symbol'
-
-            )
-
-            .reset_index(
-
-                drop=True
-
-            )
-
-        )
-
-    else:
-
-        monthly_crossovers = pd.DataFrame()
-
-
 # ════════════════════════════════════════════════════════════════════════════
 # STEP 8
-# FORMAT MONTHLY RESULTS
+# FORMAT 2-DAY RESULTS
 # ════════════════════════════════════════════════════════════════════════════
 
 print("\n" + "=" * 90)
-print("STEP 8 - MONTHLY CROSSOVER RESULTS")
+print("STEP 8 - FORMATTING 2-DAY EMA RESULTS")
 print("=" * 90)
 
 
-if not monthly_crossovers.empty:
+# Final safety check:
+# every crossover date must exist in original CSV
 
-    # ------------------------------------------------------------
-    # FINAL SAFETY CHECK:
-    # Every crossover date MUST exist in original CSV.
-    # ------------------------------------------------------------
+if not two_day_crossovers.empty:
 
     original_dates = set(
 
-        monthly_source['Date']
+        two_day_source["Date"]
         .dt.normalize()
         .unique()
 
@@ -1925,7 +1600,7 @@ if not monthly_crossovers.empty:
     crossover_dates = set(
 
         pd.to_datetime(
-            monthly_crossovers['Date']
+            two_day_crossovers["Date"]
         )
         .dt.normalize()
         .unique()
@@ -1956,54 +1631,87 @@ if not monthly_crossovers.empty:
         raise SystemExit(1)
 
 
-    # ------------------------------------------------------------
     # Format date
-    # ------------------------------------------------------------
 
-    monthly_crossovers['Date'] = (
+    two_day_crossovers["Date"] = (
 
         pd.to_datetime(
-
-            monthly_crossovers['Date']
-
+            two_day_crossovers["Date"]
         )
 
         .dt.strftime(
-            '%Y-%m-%d'
+            "%Y-%m-%d"
         )
 
     )
 
 
-    # ------------------------------------------------------------
-    # Round values
-    # ------------------------------------------------------------
+    two_day_crossovers["First_Trading_Date"] = (
 
-    for col in [
+        pd.to_datetime(
+            two_day_crossovers["First_Trading_Date"]
+        )
 
-        'Open',
-        'High',
-        'Low',
-        'Close',
-        'Volume',
-        'EMA_10',
-        'EMA_25',
-        'Previous_EMA_10',
-        'Previous_EMA_25',
-        'EMA_Difference',
-        'EMA_Gap_%'
+        .dt.strftime(
+            "%Y-%m-%d"
+        )
 
-    ]:
+    )
 
-        if col in monthly_crossovers.columns:
 
-            monthly_crossovers[col] = (
+    two_day_crossovers["Second_Trading_Date"] = (
+
+        pd.to_datetime(
+            two_day_crossovers["Second_Trading_Date"]
+        )
+
+        .dt.strftime(
+            "%Y-%m-%d"
+        )
+
+    )
+
+
+    # Round numerical values
+
+    numeric_columns = [
+
+        "Open",
+        "High",
+        "Low",
+        "Close",
+        "Volume",
+
+        "EMA_20",
+        "EMA_50",
+
+        "Previous_EMA_20",
+        "Previous_EMA_50",
+
+        "EMA_Difference",
+        "EMA_Gap_%",
+
+        "RSI",
+
+        "Slope_20",
+        "Slope_50",
+
+        "30_2Day_Avg_Volume"
+
+    ]
+
+
+    for col in numeric_columns:
+
+        if col in two_day_crossovers.columns:
+
+            two_day_crossovers[col] = (
 
                 pd.to_numeric(
 
-                    monthly_crossovers[col],
+                    two_day_crossovers[col],
 
-                    errors='coerce'
+                    errors="coerce"
 
                 )
 
@@ -2012,92 +1720,72 @@ if not monthly_crossovers.empty:
             )
 
 
-    print(
-        "\nCONFIRMED MONTHLY EMA 10 / EMA 25 CROSSOVERS:"
-    )
-
-
-    print(
-
-        monthly_crossovers[
-
-            [
-
-                'Symbol',
-
-                'Date',
-
-                'Close',
-
-                'EMA_10',
-
-                'EMA_25',
-
-                'Previous_EMA_10',
-
-                'Previous_EMA_25',
-
-                'EMA_Difference',
-
-                'EMA_Gap_%',
-
-                'Months_Used'
-
-            ]
-
-        ].to_string(
-            index=False
-        )
-
-    )
-
-else:
-
-    print(
-        "No confirmed monthly EMA crossover found."
-    )
-
-
 # ════════════════════════════════════════════════════════════════════════════
-# FINAL MONTHLY COLUMN ORDER
+# FINAL 2-DAY OUTPUT COLUMN ORDER
 # ════════════════════════════════════════════════════════════════════════════
 
-monthly_output_columns = [
+two_day_output_columns = [
 
-    'Symbol',
-    'Date',
-    'Open',
-    'High',
-    'Low',
-    'Close',
-    'Volume',
-    'EMA_10',
-    'EMA_25',
-    'Previous_EMA_10',
-    'Previous_EMA_25',
-    'EMA_Difference',
-    'Monthly_Crossover',
-    'EMA_Gap_%',
-    'Months_Used'
+    "Symbol",
+
+    "Date",
+
+    "First_Trading_Date",
+
+    "Second_Trading_Date",
+
+    "Open",
+
+    "High",
+
+    "Low",
+
+    "Close",
+
+    "Volume",
+
+    "EMA_20",
+
+    "EMA_50",
+
+    "Previous_EMA_20",
+
+    "Previous_EMA_50",
+
+    "EMA_Difference",
+
+    "Two_Day_Crossover",
+
+    "EMA_Gap_%",
+
+    "RSI",
+
+    "30_2Day_Avg_Volume",
+
+    "Slope_20",
+
+    "Slope_50",
+
+    "Trading_Days"
 
 ]
 
 
-if not monthly_crossovers.empty:
+if not two_day_crossovers.empty:
 
-    monthly_crossovers = (
+    two_day_crossovers = (
 
-        monthly_crossovers[
+        two_day_crossovers[
 
             [
 
                 col
 
                 for col
-                in monthly_output_columns
+                in two_day_output_columns
 
                 if col
-                in monthly_crossovers.columns
+                in two_day_crossovers.columns
 
             ]
 
@@ -2107,31 +1795,31 @@ if not monthly_crossovers.empty:
 
 else:
 
-    monthly_crossovers = pd.DataFrame(
+    two_day_crossovers = pd.DataFrame(
 
-        columns=monthly_output_columns
+        columns=two_day_output_columns
 
     )
 
 
 # ════════════════════════════════════════════════════════════════════════════
 # STEP 9
-# UPLOAD MONTHLY EMA FILE
+# UPLOAD 2-DAY EMA FILE
 # ════════════════════════════════════════════════════════════════════════════
 
-monthly_file = (
+print("\n" + "=" * 90)
+print("STEP 9 - UPLOADING 2-DAY EMA CROSSOVER FILE")
+print("=" * 90)
 
-    f'Monthly_EMA_Cross_for_{today_str}.csv'
 
+two_day_file = (
+    f"2Day_EMA_Cross_for_{today_str}.csv"
 )
 
 
 github_put(
-
-    monthly_file,
-
-    monthly_crossovers
-
+    two_day_file,
+    two_day_crossovers
 )
 
 
@@ -2145,30 +1833,35 @@ print("STEP 10 - CLEANING OLD FILES")
 print("=" * 90)
 
 
+# Keep latest historical file
+
 delete_old_github_files(
-
-    'espen_',
-
+    "espen_",
     keep=1
-
 )
 
 
+# Keep latest 2-day EMA file
+
 delete_old_github_files(
-
-    'EMA_Cross_for_',
-
+    "2Day_EMA_Cross_for_",
     keep=1
-
 )
 
 
+# Also clean old daily EMA files
+
 delete_old_github_files(
+    "EMA_Cross_for_",
+    keep=0
+)
 
-    'Monthly_EMA_Cross_for_',
 
-    keep=1
+# Remove old monthly EMA files
 
+delete_old_github_files(
+    "Monthly_EMA_Cross_for_",
+    keep=0
 )
 
 
@@ -2178,33 +1871,31 @@ delete_old_github_files(
 
 JUNK_PATTERNS = [
 
-    r'^nepse_\w+\.csv$',
+    r"^nepse_\w+\.csv$",
 
-    r'^combined_data\.csv$',
+    r"^combined_data\.csv$",
 
-    r'^valid_ema_crossovers\.csv$',
+    r"^valid_ema_crossovers\.csv$",
 
-    r'^latest_valid_ema_crossovers\.csv$'
+    r"^latest_valid_ema_crossovers\.csv$"
 
 ]
 
 
 headers = {
 
-    'Authorization':
-        f'token {GH_TOKEN}',
+    "Authorization":
+        f"token {GH_TOKEN}",
 
-    'Accept':
-        'application/vnd.github+json'
+    "Accept":
+        "application/vnd.github+json"
 
 }
 
 
 repo_url = (
-
-    f'https://api.github.com/repos/'
-    f'{GITHUB_REPO}/contents/'
-
+    f"https://api.github.com/repos/"
+    f"{GITHUB_REPO}/contents/"
 )
 
 
@@ -2227,8 +1918,8 @@ if response.status_code == 200:
     for file_info in repo_files:
 
         file_name = file_info.get(
-            'name',
-            ''
+            "name",
+            ""
         )
 
 
@@ -2249,20 +1940,20 @@ if response.status_code == 200:
 
             delete_response = requests.delete(
 
-                file_info['url'],
+                file_info["url"],
 
                 headers=headers,
 
                 json={
 
-                    'message':
-                        f'Cleanup {file_name}',
+                    "message":
+                        f"Cleanup {file_name}",
 
-                    'sha':
-                        file_info['sha'],
+                    "sha":
+                        file_info["sha"],
 
-                    'branch':
-                        'main'
+                    "branch":
+                        "main"
 
                 },
 
@@ -2287,35 +1978,58 @@ print("\n" + "=" * 100)
 print("PROCESS COMPLETED SUCCESSFULLY")
 print("=" * 100)
 
-print(
-    f"Historical file:  {historical_file}"
-)
 
 print(
-    f"Daily EMA file:   {daily_file}"
+    f"Historical file: "
+    f"{historical_file}"
 )
 
-print(
-    f"Monthly EMA file: {monthly_file}"
-)
 
 print(
-    f"Minimum monthly history: "
-    f"{MIN_MONTHS_REQUIRED} completed months"
+    f"2-Day EMA file:   "
+    f"{two_day_file}"
 )
 
-print(
-    "Monthly dates: ACTUAL CSV TRADING DATES ONLY"
-)
 
 print(
-    "Current incomplete month: EXCLUDED"
+    "EMA calculation: EMA 20 / EMA 50"
 )
 
+
 print(
-    "Calendar month-end dates: NOT GENERATED"
+    "Candle period: 2 ACTUAL NEPSE TRADING DAYS"
 )
+
+
+print(
+    "Weekends/holidays: NOT COUNTED"
+)
+
+
+print(
+    "Incomplete final 1-day candle: EXCLUDED"
+)
+
+
+print(
+    "2-day candle date: SECOND ACTUAL TRADING DATE"
+)
+
+
+print(
+    "Monthly EMA calculation: REMOVED"
+)
+
+
+print(
+    "Old daily EMA files: REMOVED"
+)
+
+
+print(
+    "Old monthly EMA files: REMOVED"
+)
+
 
 print("=" * 100)
 print("DONE.")
-
