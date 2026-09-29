@@ -56,13 +56,18 @@ GITHUB_REPO = "iamsrijit0/Nepse"
 
 GH_TOKEN = os.getenv("GH_TOKEN")
 
+# Number of actual trading days used to create each candle
+CANDLE_DAYS = 3
+
 
 # ════════════════════════════════════════════════════════════════════════════
 # CHECK GITHUB TOKEN
 # ════════════════════════════════════════════════════════════════════════════
 
 if not GH_TOKEN:
+
     print("\nERROR: GH_TOKEN environment variable is not set.")
+
     raise SystemExit(1)
 
 
@@ -73,6 +78,7 @@ if not GH_TOKEN:
 def to_float(value):
 
     try:
+
         if value is None:
             return 0.0
 
@@ -82,17 +88,21 @@ def to_float(value):
         return float(value)
 
     except (TypeError, ValueError):
+
         return 0.0
 
 
 def clean_numeric_series(series):
 
     return pd.to_numeric(
+
         series
         .astype(str)
         .str.replace(",", "", regex=False)
         .replace("-", np.nan),
+
         errors="coerce"
+
     )
 
 
@@ -178,13 +188,17 @@ for item in content_data:
     if open_price > 0:
 
         pct_change = (
+
             (
-                close_price - open_price
+                close_price
+                -
+                open_price
             )
             /
             open_price
             *
             100
+
         )
 
     else:
@@ -313,20 +327,24 @@ def get_latest_espen_url():
                     f"{file_name}"
                 )
 
+
     if not files:
 
         raise ValueError(
             "No espen_ CSV file found in GitHub repository."
         )
 
+
     latest_date = max(
         files.keys()
     )
+
 
     print(
         f"Latest historical file: "
         f"espen_{latest_date}.csv"
     )
+
 
     return files[latest_date]
 
@@ -338,32 +356,45 @@ try:
 
     latest_url = get_latest_espen_url()
 
+
     raw = pd.read_csv(
         latest_url
     )
 
+
     for col in STANDARD_COLS:
 
         if col not in raw.columns:
+
             raw[col] = np.nan
+
 
     secondss = raw[
         STANDARD_COLS
     ].copy()
 
+
     secondss["Date"] = pd.to_datetime(
+
         secondss["Date"],
+
         errors="coerce"
+
     )
 
+
     secondss = secondss.dropna(
+
         subset=["Date"]
+
     )
+
 
     print(
         f"Historical rows loaded: "
         f"{len(secondss):,}"
     )
+
 
 except Exception as e:
 
@@ -387,12 +418,16 @@ print("=" * 90)
 
 
 frames = [
+
     df
+
     for df in [
         secondss,
         first
     ]
+
     if not df.empty
+
 ]
 
 
@@ -406,22 +441,30 @@ if not frames:
 
 
 combined_df = pd.concat(
+
     frames,
+
     ignore_index=True
+
 )
 
 
 combined_df["Date"] = pd.to_datetime(
+
     combined_df["Date"],
+
     errors="coerce"
+
 )
 
 
 combined_df = combined_df.dropna(
+
     subset=[
         "Symbol",
         "Date"
     ]
+
 )
 
 
@@ -438,11 +481,14 @@ combined_df = (
     )
 
     .drop_duplicates(
+
         subset=[
             "Symbol",
             "Date"
         ],
+
         keep="last"
+
     )
 
 )
@@ -474,8 +520,10 @@ for symbol in combined_df["Symbol"].unique():
 
         mask = (
             combined_df["Symbol"]
-            == symbol
+            ==
+            symbol
         )
+
 
         combined_df.loc[
             mask,
@@ -484,6 +532,7 @@ for symbol in combined_df["Symbol"].unique():
             symbol,
             "52High"
         ]
+
 
         combined_df.loc[
             mask,
@@ -518,8 +567,13 @@ combined_for_upload = combined_df.copy()
 
 
 combined_for_upload["Date"] = (
+
     combined_for_upload["Date"]
-    .apply(format_date)
+
+    .apply(
+        format_date
+    )
+
 )
 
 
@@ -535,7 +589,7 @@ print(
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# GITHUB UPLOAD FUNCTION
+# GITHUB UPLOAD
 # ════════════════════════════════════════════════════════════════════════════
 
 def github_put(
@@ -547,38 +601,59 @@ def github_put(
         f"\nUploading {file_name} ..."
     )
 
+
     csv_content = df.to_csv(
         index=False
     )
 
+
     encoded = base64.b64encode(
+
         csv_content.encode()
+
     ).decode()
 
+
     url = (
+
         f"https://api.github.com/repos/"
         f"{GITHUB_REPO}/contents/"
         f"{file_name}"
+
     )
+
 
     headers = {
-        "Authorization": f"token {GH_TOKEN}",
-        "Accept": "application/vnd.github+json"
+
+        "Authorization":
+            f"token {GH_TOKEN}",
+
+        "Accept":
+            "application/vnd.github+json"
+
     }
 
+
     existing = requests.get(
+
         url,
+
         headers=headers,
+
         timeout=30
+
     )
 
+
     sha = None
+
 
     if existing.status_code == 200:
 
         sha = existing.json().get(
             "sha"
         )
+
 
     payload = {
 
@@ -593,15 +668,24 @@ def github_put(
 
     }
 
+
     if sha:
+
         payload["sha"] = sha
 
+
     response = requests.put(
+
         url,
+
         headers=headers,
+
         json=payload,
+
         timeout=30
+
     )
+
 
     if response.status_code in (
         200,
@@ -646,27 +730,40 @@ def delete_old_github_files(
 
     }
 
+
     url = (
+
         f"https://api.github.com/repos/"
         f"{GITHUB_REPO}/contents/"
+
     )
 
+
     response = requests.get(
+
         url,
+
         headers=headers,
+
         timeout=30
+
     )
+
 
     if response.status_code != 200:
 
         print(
+
             f"Could not list GitHub files: "
             f"{response.status_code}"
+
         )
 
         return
 
+
     files = response.json()
+
 
     matching = [
 
@@ -696,14 +793,20 @@ def delete_old_github_files(
 
     ]
 
+
     matching.sort(
+
         key=lambda x: x["name"],
+
         reverse=True
+
     )
+
 
     old_files = matching[
         keep:
     ]
+
 
     for file_info in old_files:
 
@@ -730,18 +833,23 @@ def delete_old_github_files(
 
         )
 
+
         if delete_response.status_code == 200:
 
             print(
+
                 f"Deleted old file: "
                 f"{file_info['name']}"
+
             )
 
         else:
 
             print(
+
                 f"Could not delete: "
                 f"{file_info['name']}"
+
             )
 
 
@@ -750,14 +858,24 @@ def delete_old_github_files(
 # ════════════════════════════════════════════════════════════════════════════
 
 nepal_now = pd.Timestamp.now(
-    tz=ZoneInfo("Asia/Kathmandu")
+
+    tz=ZoneInfo(
+        "Asia/Kathmandu"
+    )
+
 )
 
 
 nepal_today = (
+
     nepal_now
+
     .normalize()
-    .tz_localize(None)
+
+    .tz_localize(
+        None
+    )
+
 )
 
 
@@ -777,27 +895,32 @@ print(
 # ════════════════════════════════════════════════════════════════════════════
 
 historical_file = (
+
     f"espen_{today_str}.csv"
+
 )
 
 
 github_put(
+
     historical_file,
+
     combined_for_upload
+
 )
 
 
 # ════════════════════════════════════════════════════════════════════════════
 # STEP 5
-# CREATE 2-TRADING-DAY CANDLES
+# CREATE 3-TRADING-DAY CANDLES
 # ════════════════════════════════════════════════════════════════════════════
 
 print("\n" + "=" * 90)
-print("STEP 5 - CREATING 2-TRADING-DAY CANDLES")
+print("STEP 5 - CREATING 3-TRADING-DAY CANDLES")
 print("=" * 90)
 
 
-two_day_source = combined_df.copy()
+three_day_source = combined_df.copy()
 
 
 for col in [
@@ -808,49 +931,52 @@ for col in [
     "Volume"
 ]:
 
-    two_day_source[col] = clean_numeric_series(
-        two_day_source[col]
+    three_day_source[col] = clean_numeric_series(
+
+        three_day_source[col]
+
     )
 
 
-two_day_source = two_day_source.dropna(
+three_day_source = three_day_source.dropna(
+
     subset=[
         "Symbol",
         "Date",
         "Close"
     ]
+
 )
 
 
-two_day_source = two_day_source.sort_values(
+three_day_source = three_day_source.sort_values(
+
     [
         "Symbol",
         "Date"
     ]
+
 )
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# IMPORTANT
+# 3-DAY CANDLE LOGIC
 #
-# We DO NOT use calendar-day resampling.
-#
-# We use ACTUAL rows from the CSV.
+# ONLY ACTUAL CSV TRADING DAYS ARE USED.
 #
 # Example:
 #
-# Trading Day 1 + Trading Day 2 = Candle 1
-# Trading Day 3 + Trading Day 4 = Candle 2
-# Trading Day 5 + Trading Day 6 = Candle 3
+# Day 1 + Day 2 + Day 3 = Candle 1
+# Day 4 + Day 5 + Day 6 = Candle 2
+# Day 7 + Day 8 + Day 9 = Candle 3
 #
-# Weekend / holiday = NOT counted.
+# Weekends and holidays are NOT counted.
 #
-# If a symbol has an odd number of trading rows, the final single day
-# is NOT used because it is not a complete 2-trading-day candle.
+# If the final group contains only 1 or 2 trading days,
+# it is NOT used.
 # ════════════════════════════════════════════════════════════════════════════
 
-
-def make_two_day_data(
+def make_three_day_data(
     symbol,
     group
 ):
@@ -872,192 +998,252 @@ def make_two_day_data(
     )
 
 
-    # Need at least 2 actual trading days
-    if len(group) < 2:
+    # Need at least 3 actual trading days
+
+    if len(group) < CANDLE_DAYS:
+
         return pd.DataFrame()
 
 
     # ------------------------------------------------------------
-    # Keep only COMPLETE pairs
+    # Keep only COMPLETE 3-day groups
     # ------------------------------------------------------------
 
     complete_count = (
-        len(group) // 2
-    ) * 2
+
+        len(group)
+        //
+        CANDLE_DAYS
+
+    ) * CANDLE_DAYS
+
 
     group = group.iloc[
         :complete_count
     ].copy()
 
 
-    if len(group) < 2:
+    if len(group) < CANDLE_DAYS:
+
         return pd.DataFrame()
 
 
     # ------------------------------------------------------------
-    # Create sequential 2-day groups
+    # Sequential groups
     #
-    # 0,1   -> pair 1
-    # 2,3   -> pair 2
-    # 4,5   -> pair 3
+    # 0,1,2       -> candle 1
+    # 3,4,5       -> candle 2
+    # 6,7,8       -> candle 3
     # ------------------------------------------------------------
 
-    group["_2Day_Group"] = (
+    group["_3Day_Group"] = (
+
         np.arange(
             len(group)
-        ) // 2
+        )
+        //
+        CANDLE_DAYS
+
     )
 
 
-    two_day_rows = []
+    three_day_rows = []
 
 
-    for pair_number, pair in group.groupby(
-        "_2Day_Group",
+    for (
+
+        group_number,
+        candle
+
+    ) in group.groupby(
+
+        "_3Day_Group",
+
         sort=True
+
     ):
 
-        pair = pair.sort_values(
+        candle = candle.sort_values(
             "Date"
         )
 
 
-        # Safety: every candle MUST contain exactly 2 rows
-        if len(pair) != 2:
+        # Safety check
+
+        if len(candle) != CANDLE_DAYS:
+
             continue
 
 
-        first_day = pair.iloc[0]
-        second_day = pair.iloc[1]
+        first_day = candle.iloc[0]
+
+        last_day = candle.iloc[-1]
 
 
-        two_day_rows.append({
+        three_day_rows.append({
 
             "Symbol":
                 symbol,
 
-            # The candle date is the SECOND
+            # Candle date is the LAST
             # actual trading date
-            "Date":
-                second_day["Date"],
 
-            # First trading day's Open
+            "Date":
+                last_day["Date"],
+
+
+            # First day's opening price
+
             "Open":
                 first_day["Open"],
 
-            # Highest price over both days
+
+            # Highest price over all 3 days
+
             "High":
-                pair["High"].max(),
+                candle["High"].max(),
 
-            # Lowest price over both days
+
+            # Lowest price over all 3 days
+
             "Low":
-                pair["Low"].min(),
+                candle["Low"].min(),
 
-            # Second trading day's Close
+
+            # Third day's closing price
+
             "Close":
-                second_day["Close"],
+                last_day["Close"],
 
-            # Total volume over both days
+
+            # Total volume over all 3 days
+
             "Volume":
-                pair["Volume"].sum(),
+                candle["Volume"].sum(),
 
-            # Useful verification fields
+
+            # Verification fields
+
             "First_Trading_Date":
-                first_day["Date"],
+                candle["Date"].iloc[0],
 
             "Second_Trading_Date":
-                second_day["Date"],
+                candle["Date"].iloc[1],
+
+            "Third_Trading_Date":
+                candle["Date"].iloc[2],
 
             "Trading_Days":
-                2
+                CANDLE_DAYS
 
         })
 
 
     return pd.DataFrame(
-        two_day_rows
+        three_day_rows
     )
 
 
-two_day_results = Parallel(
+three_day_results = Parallel(
+
     n_jobs=-1
+
 )(
+
     delayed(
-        make_two_day_data
+        make_three_day_data
     )(
+
         symbol,
+
         group
+
     )
 
     for symbol, group
-    in two_day_source.groupby(
+
+    in three_day_source.groupby(
         "Symbol"
     )
+
 )
 
 
-two_day_results = [
+three_day_results = [
+
     x
-    for x in two_day_results
+
+    for x in three_day_results
+
     if not x.empty
+
 ]
 
 
-if two_day_results:
+if three_day_results:
 
-    two_day_df = pd.concat(
-        two_day_results,
+    three_day_df = pd.concat(
+
+        three_day_results,
+
         ignore_index=True
+
     )
 
 else:
 
-    two_day_df = pd.DataFrame()
+    three_day_df = pd.DataFrame()
 
 
-if two_day_df.empty:
+if three_day_df.empty:
 
     print(
-        "ERROR: Could not create 2-day candles."
+        "ERROR: Could not create 3-day candles."
     )
 
     raise SystemExit(1)
 
 
-two_day_df = two_day_df.sort_values(
+three_day_df = three_day_df.sort_values(
+
     [
         "Symbol",
         "Date"
     ]
+
 ).reset_index(
     drop=True
 )
 
 
 print(
-    f"2-day candles created: "
-    f"{len(two_day_df):,}"
+    f"3-day candles created: "
+    f"{len(three_day_df):,}"
 )
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# VERIFY 2-DAY CANDLES
+# VALIDATE 3-DAY CANDLES
 # ════════════════════════════════════════════════════════════════════════════
 
 print(
-    "\n2-DAY CANDLE VALIDATION:"
+    "\n3-DAY CANDLE VALIDATION:"
 )
 
 
-invalid_two_day = two_day_df[
-    two_day_df["Trading_Days"] != 2
+invalid_three_day = three_day_df[
+
+    three_day_df["Trading_Days"]
+    !=
+    CANDLE_DAYS
+
 ]
 
 
-if not invalid_two_day.empty:
+if not invalid_three_day.empty:
 
     print(
-        "ERROR: Invalid 2-day candle detected."
+        "ERROR: Invalid 3-day candle detected."
     )
 
     raise SystemExit(1)
@@ -1065,37 +1251,49 @@ if not invalid_two_day.empty:
 
 print(
     "Every generated candle contains exactly "
-    "2 actual trading days."
+    "3 actual trading days."
 )
 
 
-# Verify the candle date is an actual CSV date
+# ════════════════════════════════════════════════════════════════════════════
+# VERIFY EVERY CANDLE DATE EXISTS IN ORIGINAL CSV
+# ════════════════════════════════════════════════════════════════════════════
 
 actual_csv_dates = set(
-    two_day_source["Date"]
+
+    three_day_source["Date"]
+
     .dt.normalize()
+
     .unique()
+
 )
 
 
-two_day_dates = set(
-    two_day_df["Date"]
+three_day_dates = set(
+
+    three_day_df["Date"]
+
     .dt.normalize()
+
     .unique()
+
 )
 
 
 invalid_dates = (
-    two_day_dates
+
+    three_day_dates
     -
     actual_csv_dates
+
 )
 
 
 if invalid_dates:
 
     print(
-        "ERROR: Artificial dates detected!"
+        "ERROR: Artificial 3-day dates detected!"
     )
 
     print(
@@ -1112,17 +1310,20 @@ print(
 
 # ════════════════════════════════════════════════════════════════════════════
 # STEP 6
-# 2-DAY EMA 20 / EMA 50
+# 3-DAY EMA 20 / EMA 50
 # ════════════════════════════════════════════════════════════════════════════
 
 print("\n" + "=" * 90)
-print("STEP 6 - 2-DAY EMA 20 / EMA 50")
+print("STEP 6 - 3-DAY EMA 20 / EMA 50")
 print("=" * 90)
 
 
-def process_two_day_symbol(
+def process_three_day_symbol(
+
     symbol,
+
     group
+
 ):
 
     group = (
@@ -1142,7 +1343,8 @@ def process_two_day_symbol(
     )
 
 
-    # EMA 50 requires at least 50 two-day candles
+    # EMA50 requires at least 50 three-day candles
+
     if len(group) < 50:
 
         return pd.DataFrame()
@@ -1157,9 +1359,13 @@ def process_two_day_symbol(
         group["Close"]
 
         .ewm(
+
             span=20,
+
             adjust=False,
+
             min_periods=20
+
         )
 
         .mean()
@@ -1176,9 +1382,13 @@ def process_two_day_symbol(
         group["Close"]
 
         .ewm(
+
             span=50,
+
             adjust=False,
+
             min_periods=50
+
         )
 
         .mean()
@@ -1189,7 +1399,7 @@ def process_two_day_symbol(
     # ════════════════════════════════════════════════════════════════════════
     # RSI 14
     #
-    # Calculated using 2-day candles
+    # Calculated on 3-day candles
     # ════════════════════════════════════════════════════════════════════════
 
     delta = group["Close"].diff()
@@ -1205,8 +1415,11 @@ def process_two_day_symbol(
         )
 
         .rolling(
+
             14,
+
             min_periods=14
+
         )
 
         .mean()
@@ -1224,8 +1437,11 @@ def process_two_day_symbol(
         )
 
         .rolling(
+
             14,
+
             min_periods=14
+
         )
 
         .mean()
@@ -1252,17 +1468,19 @@ def process_two_day_symbol(
     # ════════════════════════════════════════════════════════════════════════
     # 30-CANDLE AVERAGE VOLUME
     #
-    # Each candle = 2 trading days
-    # Therefore approximately 60 trading days.
+    # 30 x 3 trading days = approximately 90 trading days
     # ════════════════════════════════════════════════════════════════════════
 
-    group["30_2Day_Avg_Volume"] = (
+    group["30_3Day_Avg_Volume"] = (
 
         group["Volume"]
 
         .rolling(
+
             30,
+
             min_periods=30
+
         )
 
         .mean()
@@ -1273,13 +1491,15 @@ def process_two_day_symbol(
     # ════════════════════════════════════════════════════════════════════════
     # EMA SLOPES
     #
-    # 5 two-day candles = approximately 10 trading days
+    # 5 three-day candles = approximately 15 trading days
     # ════════════════════════════════════════════════════════════════════════
 
     group["Slope_20"] = (
 
         group["EMA_20"]
+
         .diff(5)
+
         /
         5
 
@@ -1289,7 +1509,9 @@ def process_two_day_symbol(
     group["Slope_50"] = (
 
         group["EMA_50"]
+
         .diff(5)
+
         /
         5
 
@@ -1301,12 +1523,20 @@ def process_two_day_symbol(
     # ════════════════════════════════════════════════════════════════════════
 
     group["Previous_EMA_20"] = (
-        group["EMA_20"].shift(1)
+
+        group["EMA_20"]
+
+        .shift(1)
+
     )
 
 
     group["Previous_EMA_50"] = (
-        group["EMA_50"].shift(1)
+
+        group["EMA_50"]
+
+        .shift(1)
+
     )
 
 
@@ -1317,6 +1547,7 @@ def process_two_day_symbol(
     group["EMA_Difference"] = (
 
         group["EMA_20"]
+
         -
         group["EMA_50"]
 
@@ -1332,11 +1563,13 @@ def process_two_day_symbol(
         group["EMA_50"] != 0,
 
         (
+
             group["EMA_Difference"]
             /
             group["EMA_50"]
             *
             100
+
         ),
 
         np.nan
@@ -1345,31 +1578,39 @@ def process_two_day_symbol(
 
 
     # ════════════════════════════════════════════════════════════════════════
-    # BULLISH 2-DAY EMA CROSSOVER
+    # BULLISH 3-DAY EMA CROSSOVER
     #
-    # Previous 2-day candle:
+    # PREVIOUS 3-DAY CANDLE:
     #
     # EMA20 <= EMA50
     #
-    # Current 2-day candle:
+    # CURRENT 3-DAY CANDLE:
     #
     # EMA20 > EMA50
     # ════════════════════════════════════════════════════════════════════════
 
-    group["Two_Day_Crossover"] = (
+    group["Three_Day_Crossover"] = (
 
         (
+
             group["EMA_20"]
+
             >
+
             group["EMA_50"]
+
         )
 
         &
 
         (
+
             group["Previous_EMA_20"]
+
             <=
+
             group["Previous_EMA_50"]
+
         )
 
     )
@@ -1378,19 +1619,23 @@ def process_two_day_symbol(
     # ════════════════════════════════════════════════════════════════════════
     # EXISTING FILTERS
     #
-    # These are now calculated on 2-day candles.
+    # All filters now use the 3-day candles.
     # ════════════════════════════════════════════════════════════════════════
 
     valid = group[
 
-        group["Two_Day_Crossover"]
+        group["Three_Day_Crossover"]
 
         &
 
         (
+
             group["Slope_20"]
+
             >
+
             group["Slope_50"]
+
         )
 
         &
@@ -1403,27 +1648,45 @@ def process_two_day_symbol(
         &
 
         (
+
             group["Volume"]
+
             >=
+
             0.3
+
             *
-            group["30_2Day_Avg_Volume"]
+
+            group["30_3Day_Avg_Volume"]
+
         )
 
         &
 
         (
+
             group["Close"]
+
             >
+
             group["Close"]
+
             .rolling(
+
                 60,
+
                 min_periods=60
+
             )
+
             .max()
+
             .shift(1)
+
             *
+
             0.95
+
         )
 
     ].copy()
@@ -1432,91 +1695,107 @@ def process_two_day_symbol(
     return valid
 
 
-two_day_ema_results = Parallel(
+three_day_ema_results = Parallel(
+
     n_jobs=-1
+
 )(
+
     delayed(
-        process_two_day_symbol
+        process_three_day_symbol
     )(
+
         symbol,
+
         group
+
     )
 
     for symbol, group
-    in two_day_df.groupby(
+
+    in three_day_df.groupby(
         "Symbol"
     )
+
 )
 
 
-two_day_ema_results = [
+three_day_ema_results = [
 
     x
 
-    for x in two_day_ema_results
+    for x in three_day_ema_results
 
     if not x.empty
 
 ]
 
 
-if two_day_ema_results:
+if three_day_ema_results:
 
-    two_day_crossovers = pd.concat(
+    three_day_crossovers = pd.concat(
 
-        two_day_ema_results,
+        three_day_ema_results,
 
         ignore_index=True
 
     )
 
 
-    # Keep the latest confirmed crossover for each symbol
+    # Keep only latest confirmed crossover
+    # for each symbol
 
-    two_day_crossovers = (
+    three_day_crossovers = (
 
-        two_day_crossovers
+        three_day_crossovers
 
         .sort_values(
+
             "Date",
+
             ascending=False
+
         )
 
         .drop_duplicates(
+
             "Symbol"
+
         )
 
         .reset_index(
+
             drop=True
+
         )
 
     )
 
 else:
 
-    two_day_crossovers = pd.DataFrame()
+    three_day_crossovers = pd.DataFrame()
 
 
 # ════════════════════════════════════════════════════════════════════════════
 # STEP 7
-# DISPLAY 2-DAY EMA CROSSOVERS
+# DISPLAY RESULTS
 # ════════════════════════════════════════════════════════════════════════════
 
 print("\n" + "=" * 90)
-print("STEP 7 - 2-DAY EMA CROSSOVER RESULTS")
+print("STEP 7 - 3-DAY EMA CROSSOVER RESULTS")
 print("=" * 90)
 
 
-if two_day_crossovers.empty:
+if three_day_crossovers.empty:
 
     print(
-        "No confirmed 2-day EMA crossover found."
+        "No confirmed 3-day EMA crossover found."
     )
 
 else:
 
     print(
-        "\nCONFIRMED 2-DAY EMA 20 / EMA 50 CROSSOVERS:"
+        "\nCONFIRMED 3-DAY EMA 20 / EMA 50 CROSSOVERS:"
     )
 
 
@@ -1529,6 +1808,8 @@ else:
         "First_Trading_Date",
 
         "Second_Trading_Date",
+
+        "Third_Trading_Date",
 
         "Close",
 
@@ -1557,17 +1838,21 @@ else:
         in display_columns
 
         if col
-        in two_day_crossovers.columns
+        in three_day_crossovers.columns
 
     ]
 
 
     print(
 
-        two_day_crossovers[
+        three_day_crossovers[
+
             available_display_columns
+
         ].to_string(
+
             index=False
+
         )
 
     )
@@ -1575,23 +1860,26 @@ else:
 
 # ════════════════════════════════════════════════════════════════════════════
 # STEP 8
-# FORMAT 2-DAY RESULTS
+# FORMAT RESULTS
 # ════════════════════════════════════════════════════════════════════════════
 
 print("\n" + "=" * 90)
-print("STEP 8 - FORMATTING 2-DAY EMA RESULTS")
+print("STEP 8 - FORMATTING 3-DAY EMA RESULTS")
 print("=" * 90)
 
 
-# Final safety check:
-# every crossover date must exist in original CSV
+if not three_day_crossovers.empty:
 
-if not two_day_crossovers.empty:
+    # ------------------------------------------------------------
+    # FINAL DATE SAFETY CHECK
+    # ------------------------------------------------------------
 
     original_dates = set(
 
-        two_day_source["Date"]
+        three_day_source["Date"]
+
         .dt.normalize()
+
         .unique()
 
     )
@@ -1600,9 +1888,13 @@ if not two_day_crossovers.empty:
     crossover_dates = set(
 
         pd.to_datetime(
-            two_day_crossovers["Date"]
+
+            three_day_crossovers["Date"]
+
         )
+
         .dt.normalize()
+
         .unique()
 
     )
@@ -1611,7 +1903,9 @@ if not two_day_crossovers.empty:
     bad_dates = (
 
         crossover_dates
+
         -
+
         original_dates
 
     )
@@ -1631,85 +1925,90 @@ if not two_day_crossovers.empty:
         raise SystemExit(1)
 
 
-    # Format date
+    # ------------------------------------------------------------
+    # Format dates
+    # ------------------------------------------------------------
 
-    two_day_crossovers["Date"] = (
+    date_columns = [
 
-        pd.to_datetime(
-            two_day_crossovers["Date"]
-        )
+        "Date",
 
-        .dt.strftime(
-            "%Y-%m-%d"
-        )
+        "First_Trading_Date",
 
-    )
+        "Second_Trading_Date",
 
+        "Third_Trading_Date"
 
-    two_day_crossovers["First_Trading_Date"] = (
-
-        pd.to_datetime(
-            two_day_crossovers["First_Trading_Date"]
-        )
-
-        .dt.strftime(
-            "%Y-%m-%d"
-        )
-
-    )
+    ]
 
 
-    two_day_crossovers["Second_Trading_Date"] = (
+    for col in date_columns:
 
-        pd.to_datetime(
-            two_day_crossovers["Second_Trading_Date"]
-        )
+        if col in three_day_crossovers.columns:
 
-        .dt.strftime(
-            "%Y-%m-%d"
-        )
+            three_day_crossovers[col] = (
 
-    )
+                pd.to_datetime(
+
+                    three_day_crossovers[col]
+
+                )
+
+                .dt.strftime(
+                    "%Y-%m-%d"
+                )
+
+            )
 
 
-    # Round numerical values
+    # ------------------------------------------------------------
+    # Round numerical columns
+    # ------------------------------------------------------------
 
     numeric_columns = [
 
         "Open",
+
         "High",
+
         "Low",
+
         "Close",
+
         "Volume",
 
         "EMA_20",
+
         "EMA_50",
 
         "Previous_EMA_20",
+
         "Previous_EMA_50",
 
         "EMA_Difference",
+
         "EMA_Gap_%",
 
         "RSI",
 
         "Slope_20",
+
         "Slope_50",
 
-        "30_2Day_Avg_Volume"
+        "30_3Day_Avg_Volume"
 
     ]
 
 
     for col in numeric_columns:
 
-        if col in two_day_crossovers.columns:
+        if col in three_day_crossovers.columns:
 
-            two_day_crossovers[col] = (
+            three_day_crossovers[col] = (
 
                 pd.to_numeric(
 
-                    two_day_crossovers[col],
+                    three_day_crossovers[col],
 
                     errors="coerce"
 
@@ -1721,10 +2020,10 @@ if not two_day_crossovers.empty:
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# FINAL 2-DAY OUTPUT COLUMN ORDER
+# FINAL OUTPUT COLUMN ORDER
 # ════════════════════════════════════════════════════════════════════════════
 
-two_day_output_columns = [
+three_day_output_columns = [
 
     "Symbol",
 
@@ -1733,6 +2032,8 @@ two_day_output_columns = [
     "First_Trading_Date",
 
     "Second_Trading_Date",
+
+    "Third_Trading_Date",
 
     "Open",
 
@@ -1754,13 +2055,13 @@ two_day_output_columns = [
 
     "EMA_Difference",
 
-    "Two_Day_Crossover",
+    "Three_Day_Crossover",
 
     "EMA_Gap_%",
 
     "RSI",
 
-    "30_2Day_Avg_Volume",
+    "30_3Day_Avg_Volume",
 
     "Slope_20",
 
@@ -1771,21 +2072,21 @@ two_day_output_columns = [
 ]
 
 
-if not two_day_crossovers.empty:
+if not three_day_crossovers.empty:
 
-    two_day_crossovers = (
+    three_day_crossovers = (
 
-        two_day_crossovers[
+        three_day_crossovers[
 
             [
 
                 col
 
                 for col
-                in two_day_output_columns
+                in three_day_output_columns
 
                 if col
-                in two_day_crossovers.columns
+                in three_day_crossovers.columns
 
             ]
 
@@ -1795,31 +2096,36 @@ if not two_day_crossovers.empty:
 
 else:
 
-    two_day_crossovers = pd.DataFrame(
+    three_day_crossovers = pd.DataFrame(
 
-        columns=two_day_output_columns
+        columns=three_day_output_columns
 
     )
 
 
 # ════════════════════════════════════════════════════════════════════════════
 # STEP 9
-# UPLOAD 2-DAY EMA FILE
+# UPLOAD 3-DAY EMA FILE
 # ════════════════════════════════════════════════════════════════════════════
 
 print("\n" + "=" * 90)
-print("STEP 9 - UPLOADING 2-DAY EMA CROSSOVER FILE")
+print("STEP 9 - UPLOADING 3-DAY EMA CROSSOVER FILE")
 print("=" * 90)
 
 
-two_day_file = (
-    f"2Day_EMA_Cross_for_{today_str}.csv"
+three_day_file = (
+
+    f"3Day_EMA_Cross_for_{today_str}.csv"
+
 )
 
 
 github_put(
-    two_day_file,
-    two_day_crossovers
+
+    three_day_file,
+
+    three_day_crossovers
+
 )
 
 
@@ -1833,35 +2139,58 @@ print("STEP 10 - CLEANING OLD FILES")
 print("=" * 90)
 
 
-# Keep latest historical file
+# Keep only latest historical file
 
 delete_old_github_files(
+
     "espen_",
+
     keep=1
+
 )
 
 
-# Keep latest 2-day EMA file
+# Keep only latest 3-day EMA file
 
 delete_old_github_files(
-    "2Day_EMA_Cross_for_",
+
+    "3Day_EMA_Cross_for_",
+
     keep=1
+
 )
 
 
-# Also clean old daily EMA files
+# Remove old daily EMA files
 
 delete_old_github_files(
+
     "EMA_Cross_for_",
+
     keep=0
+
+)
+
+
+# Remove old 2-day EMA files
+
+delete_old_github_files(
+
+    "2Day_EMA_Cross_for_",
+
+    keep=0
+
 )
 
 
 # Remove old monthly EMA files
 
 delete_old_github_files(
+
     "Monthly_EMA_Cross_for_",
+
     keep=0
+
 )
 
 
@@ -1894,8 +2223,10 @@ headers = {
 
 
 repo_url = (
+
     f"https://api.github.com/repos/"
     f"{GITHUB_REPO}/contents/"
+
 )
 
 
@@ -1918,19 +2249,26 @@ if response.status_code == 200:
     for file_info in repo_files:
 
         file_name = file_info.get(
+
             "name",
+
             ""
+
         )
 
 
         should_delete = any(
 
             re.match(
+
                 pattern,
+
                 file_name
+
             )
 
             for pattern
+
             in JUNK_PATTERNS
 
         )
@@ -1965,8 +2303,10 @@ if response.status_code == 200:
             if delete_response.status_code == 200:
 
                 print(
+
                     f"Removed junk file: "
                     f"{file_name}"
+
                 )
 
 
@@ -1986,8 +2326,8 @@ print(
 
 
 print(
-    f"2-Day EMA file:   "
-    f"{two_day_file}"
+    f"3-Day EMA file:   "
+    f"{three_day_file}"
 )
 
 
@@ -1997,7 +2337,7 @@ print(
 
 
 print(
-    "Candle period: 2 ACTUAL NEPSE TRADING DAYS"
+    "Candle period: 3 ACTUAL NEPSE TRADING DAYS"
 )
 
 
@@ -2007,12 +2347,12 @@ print(
 
 
 print(
-    "Incomplete final 1-day candle: EXCLUDED"
+    "Incomplete final 1-2 day candle: EXCLUDED"
 )
 
 
 print(
-    "2-day candle date: SECOND ACTUAL TRADING DATE"
+    "3-day candle date: THIRD ACTUAL TRADING DATE"
 )
 
 
@@ -2023,6 +2363,11 @@ print(
 
 print(
     "Old daily EMA files: REMOVED"
+)
+
+
+print(
+    "Old 2-day EMA files: REMOVED"
 )
 
 
